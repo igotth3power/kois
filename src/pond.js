@@ -181,9 +181,7 @@ const Ink = (() => {
     E(g, 'circle', { r: f(r * .22), fill: center });
     for (let i = 0; i < 9; i++) { const a = i / 9 * 6.283; E(g, 'circle', { cx: f(Math.cos(a) * r * .38), cy: f(Math.sin(a) * r * .38), r: .55, fill: '#3a2a10' }); }
   }
-  function petal(p, x, y, s, rot, col = '#f2b8c6') {
-    E(p, 'path', { d: `M0,-3 C2.4,-3 3,0 1.6,3 L0,2 L-1.6,3 C-3,0 -2.4,-3 0,-3Z`, transform: `translate(${f(x)},${f(y)}) rotate(${f(rot)}) scale(${s})`, fill: col, stroke: '#7a4a52', 'stroke-width': .25, opacity: .92 });
-  }
+
 
   function lotusLeaf(p, x, y, r, rot, col = '#1d1d1d', op = .22) {
     const a0 = (rot - 14) * Math.PI / 180, a1 = (rot + 14) * Math.PI / 180;
@@ -302,7 +300,7 @@ const Ink = (() => {
   }
 
 
-  return { NS, R, E, G, f, bez, smooth, blob, taperF, stroke, branch, paper, pond, rock, ripple, needles, blossom, petal, lotusLeaf, lotusFlower, bambooLeaf, bambooCluster, grass, calli, seal, splatter, lantern, bridge, stepStones };
+  return { NS, R, E, G, f, bez, smooth, blob, taperF, stroke, branch, paper, pond, rock, ripple, needles, blossom, lotusLeaf, lotusFlower, bambooLeaf, bambooCluster, grass, calli, seal, splatter, lantern, bridge, stepStones };
 })();
 const INK_DEFS = `
     <filter id="brush" x="-15%" y="-15%" width="130%" height="130%">
@@ -697,6 +695,55 @@ function mapleArt(s, x, y, r, col, seed) {
   E(s, 'path', { d, fill: 'none', stroke: ink, 'stroke-width': f(r * .028), opacity: .75, 'stroke-dasharray': dash, 'stroke-linejoin': 'round' });
 }
 
+// Hoa anh đào nhìn từ trên: 5 cánh hình trứng ngược, đầu cánh có khía chẻ nhỏ đặc trưng; cánh trắng hồng nhạt ở mép,
+// đậm dần về gốc, gân mảnh toả từ gốc; giữa hoa đỏ sẫm, chùm nhị mảnh đầu vàng nâu, một nhuỵ ở tâm.
+// Cánh hơi lệch góc và to nhỏ khác nhau, mép viền mực hồng mảnh.
+function sakuraPetalD(L, W, notch) {
+  // gốc ở (0,0), đầu cánh ở (0,-L); khía chẻ sâu notch*L ở giữa đầu cánh
+  const { f } = Ink, n = L * notch, w = W / 2;
+  return `M0,0 C${f(w * .55)},${f(-L * .12)} ${f(w * 1.05)},${f(-L * .55)} ${f(w * .78)},${f(-L * .9)} ` +
+    `Q${f(w * .5)},${f(-L * 1.04)} ${f(w * .12)},${f(-L * .97)} L0,${f(-L + n)} L${f(-w * .12)},${f(-L * .97)} ` +
+    `Q${f(-w * .5)},${f(-L * 1.04)} ${f(-w * .78)},${f(-L * .9)} C${f(-w * 1.05)},${f(-L * .55)} ${f(-w * .55)},${f(-L * .12)} 0,0Z`;
+}
+function sakuraArt(s, x, y, r, seed, col = '#f7d6de', rot = 0) {
+  const { E, G, R, f } = Ink, rr = R(seed), id = 'sk' + seed;
+  const defs = E(s, 'defs'), gr = E(defs, 'radialGradient', { id, cx: 0, cy: 0, r: r, gradientUnits: 'userSpaceOnUse' });
+  E(gr, 'stop', { offset: 0, 'stop-color': '#d9587e' }); E(gr, 'stop', { offset: .28, 'stop-color': '#efa2b8' }); E(gr, 'stop', { offset: .6, 'stop-color': col }); E(gr, 'stop', { offset: 1, 'stop-color': '#fdf3f5' });
+  const g = G(s, { transform: `translate(${f(x)},${f(y)}) rotate(${f(rot)})` });
+  E(g, 'circle', { cx: .6, cy: .9, r: f(r * .95), fill: '#3a1a22', opacity: .14, filter: 'url(#blurS)' });   // bóng mềm
+  const a0 = rr() * 72;
+  for (let i = 0; i < 5; i++) {
+    const a = a0 + i * 72 + (rr() - .5) * 10, L = r * (1.02 + rr() * .14), W = r * (.82 + rr() * .12);
+    const pg = G(g, { transform: `rotate(${f(a)})` }), d = sakuraPetalD(L, W, .13 + rr() * .05);
+    E(pg, 'path', { d, fill: `url(#${id})`, opacity: .97 });
+    // gân mảnh từ gốc toả ra
+    const vg = G(pg, { stroke: '#d9708e', 'stroke-width': f(r * .018), fill: 'none', opacity: .45 });
+    for (const k of [-.55, -.28, 0, .28, .55]) E(vg, 'path', { d: `M0,${f(-L * .08)} Q${f(W * k * .45)},${f(-L * .5)} ${f(W * k * .38)},${f(-L * .86)}` });
+    E(pg, 'path', { d, fill: 'none', stroke: '#b4566e', 'stroke-width': f(r * .025), opacity: .55, 'stroke-linejoin': 'round' });
+  }
+  // tâm hoa đỏ sẫm + chùm nhị + nhuỵ
+  E(g, 'circle', { r: f(r * .2), fill: '#a8243e', opacity: .85, filter: 'url(#blurS)' });
+  const n = 16 + Math.floor(rr() * 6);
+  for (let i = 0; i < n; i++) {
+    const a = i / n * TAU + (rr() - .5) * .3, l = r * (.38 + rr() * .16), ex = Math.cos(a) * l, ey = Math.sin(a) * l;
+    E(g, 'path', { d: `M${f(Math.cos(a) * r * .1)},${f(Math.sin(a) * r * .1)} Q${f(Math.cos(a + .15) * l * .6)},${f(Math.sin(a + .15) * l * .6)} ${f(ex)},${f(ey)}`, fill: 'none', stroke: '#f3e6e6', 'stroke-width': f(r * .022) });
+    E(g, 'circle', { cx: f(ex), cy: f(ey), r: f(r * .045), fill: rr() < .5 ? '#e0b040' : '#b07a2a', stroke: '#6a4a1a', 'stroke-width': f(r * .008) });
+  }
+  E(g, 'circle', { r: f(r * .05), fill: '#c8d88a', stroke: '#6a7a3a', 'stroke-width': f(r * .01) });
+}
+// cánh rơi: một cánh lẻ có khía, đậm ở gốc, gân mảnh, hơi cong (lật nghiêng)
+function sakuraPetalArt(s, x, y, s0, rot, col, seed) {
+  const { E, G, f } = Ink, id = 'skp' + seed, L = 7 * s0, W = 5.6 * s0;
+  const defs = E(s, 'defs'), gr = E(defs, 'linearGradient', { id, x1: 0, y1: 1, x2: 0, y2: 0 });
+  E(gr, 'stop', { offset: 0, 'stop-color': '#e07a98' }); E(gr, 'stop', { offset: .35, 'stop-color': col }); E(gr, 'stop', { offset: 1, 'stop-color': '#fff5f7' });
+  const g = G(s, { transform: `translate(${f(x)},${f(y + L / 2)}) rotate(${f(rot)} 0 ${f(-L / 2)})` });
+  const d = sakuraPetalD(L, W, .15);
+  E(g, 'path', { d, fill: `url(#${id})` });
+  const vg = G(g, { stroke: '#d9708e', 'stroke-width': .18, fill: 'none', opacity: .5 });
+  for (const k of [-.4, 0, .4]) E(vg, 'path', { d: `M0,${f(-L * .1)} Q${f(W * k * .45)},${f(-L * .5)} ${f(W * k * .36)},${f(-L * .85)}` });
+  E(g, 'path', { d, fill: 'none', stroke: '#b4566e', 'stroke-width': .25, opacity: .6 });
+}
+
 function spriteSVG(w, h, draw, scale = 2) { const s = newSVG(w, h, scale); draw(s); return s; }
 async function spriteSet(key) {
   const out = {};
@@ -708,11 +755,11 @@ async function spriteSet(key) {
     out.flower = await Promise.all([0, 1].map(i => raster(spriteSVG(130, 130, s => { lotusLeafArt(s, 65, 65, 46, 40 + i * 140, false, 950 + i); lotusFlowerArt(s, 65, 64, 28, 960 + i); }))));   // hoa vươn lên giữa lá
     out.bud = [await raster(spriteSVG(60, 60, s => lotusBudArt(s, 30, 30)))];
   }
-  if (key === 'spring') out.fall = await Promise.all([0, 1].map(i => raster(spriteSVG(20, 20, s => Ink.petal(s, 10, 10, 2.2, i * 40, i ? '#f6c9d4' : '#f2b8c6')))));
-  if (key === 'spring') out.bloom = await Promise.all(['#f7d6de', '#fbe9ee'].map(c => raster(spriteSVG(30, 36, s => {
+  if (key === 'spring') out.fall = await Promise.all([0, 1].map(i => raster(spriteSVG(20, 20, s => sakuraPetalArt(s, 10, 10, 1.7, i * 40, i ? '#f6c9d4' : '#f2b8c6', 70 + i), 4))));
+  if (key === 'spring') out.bloom = await Promise.all(['#f7d6de', '#fbe9ee', '#f9dfe6'].map((c, i) => raster(spriteSVG(30, 36, s => {
     Ink.E(s, 'path', { d: 'M15,34 C14,30 16,25 15,20', fill: 'none', stroke: '#5a3a2a', 'stroke-width': 1, 'stroke-linecap': 'round' });
-    Ink.blossom(s, 15, 14, 10, c, '#c8406a', 0, '#6a3a44');
-  }))));
+    sakuraArt(s, 15, 14, 10, 40 + i, c, i * 23);
+  }, 4))));
   if (key === 'autumn') {
     const cols = ['#a8321e', '#c4512b', '#d9823a', '#8c2a1a', '#b8402a', '#e09a40'];
     out.leaf = await Promise.all(cols.map((c, i) => raster(spriteSVG(40, 40, s => mapleArt(s, 20, 20, 15, c, 700 + i), 4))));
@@ -1734,7 +1781,7 @@ function slotPlan(key) {
       } else {
         // anh đào: chùm 3-4 bông trên cuống dài, mọc từ một mắt
         const n = 3 + Math.floor(r() * 2);
-        for (let k = 0; k < n; k++) out.push({ dx: p[0], dy: p[1], ang: a + (k - (n - 1) / 2) * .6 + (r() - .5) * .3, size: 5.5 + r() * 3.5, v: r() > .3 ? 0 : 1 });
+        for (let k = 0; k < n; k++) out.push({ dx: p[0], dy: p[1], ang: a + (k - (n - 1) / 2) * .6 + (r() - .5) * .3, size: 5.5 + r() * 3.5, v: Math.floor(r() * 3) });
       }
     }
   }
