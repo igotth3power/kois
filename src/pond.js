@@ -697,32 +697,6 @@ function mapleArt(s, x, y, r, col, seed) {
   E(s, 'path', { d, fill: 'none', stroke: ink, 'stroke-width': f(r * .028), opacity: .75, 'stroke-dasharray': dash, 'stroke-linejoin': 'round' });
 }
 
-// Ếch nhìn từ trên (đầu hướng lên): thân bầu, đầu tròn, hai mắt lồi có đồng tử, chân sau gập chữ Z hai bên,
-// chân trước chống phía trước; lưng xanh rêu có đốm sẫm và hai sọc lưng sáng, viền mực mảnh.
-function frogArt(s, seed, col) {
-  const { E, G, R, f } = Ink, rr = R(seed), dark = '#24301a', g = G(s, { transform: 'translate(20,21)' });
-  // chân vẽ bằng nét: viền sẫm dày bên dưới, màu thân mảnh hơn đè lên
-  const limb = (pts, w) => { const d = 'M' + pts.map(q => f(q[0]) + ',' + f(q[1])).join('L'); E(g, 'path', { d, fill: 'none', stroke: dark, 'stroke-width': w + 1.2, 'stroke-linecap': 'round', 'stroke-linejoin': 'round' }); E(g, 'path', { d, fill: 'none', stroke: col, 'stroke-width': w, 'stroke-linecap': 'round', 'stroke-linejoin': 'round' }); };
-  for (const sd of [-1, 1]) {
-    // chân sau ngồi gập: hông -> gối chĩa ra trước-ngoài -> cổ chân lùi về sau -> bàn chân xoè ra sau
-    limb([[sd * 4.5, 5], [sd * 10.5, 1], [sd * 9.5, 10.5]], 2.6);
-    limb([[sd * 9.5, 10.5], [sd * 12.5, 14]], 1.3);
-    for (const a of [-.45, 0, .45]) limb([[sd * 12.5, 14], [sd * 12.5 + sd * Math.sin(.7 + a) * 3.2, 14 + Math.cos(.7 + a) * 3.2]], .5);
-    // chân trước: vai -> khuỷu -> bàn tay chống phía trước
-    limb([[sd * 5, -3], [sd * 8.5, -2.5], [sd * 8, -7.5]], 1.6);
-    for (const a of [-.4, .1, .6]) limb([[sd * 8, -7.5], [sd * 8 + sd * Math.sin(a) * 2.2, -7.5 - Math.cos(a) * 2.2]], .45);
-  }
-  E(g, 'ellipse', { cx: 1, cy: 2, rx: 7.5, ry: 9.5, fill: '#000', opacity: .2, filter: 'url(#blurS)' });
-  E(g, 'path', { d: 'M0,-10 C5,-10 7,-6 7,-1 C7.5,5 5,9.5 0,10 C-5,9.5 -7.5,5 -7,-1 C-7,-6 -5,-10 0,-10Z', fill: col, stroke: dark, 'stroke-width': .7, filter: 'url(#brushF)' });
-  for (const sd of [-1, 1]) E(g, 'path', { d: `M${sd * 3},-4 Q${sd * 3.6},2 ${sd * 2.4},8`, fill: 'none', stroke: '#c9d38e', 'stroke-width': .9, opacity: .55 });
-  for (let i = 0; i < 6; i++) E(g, 'ellipse', { cx: f((rr() - .5) * 9), cy: f(-2 + rr() * 9), rx: f(.7 + rr() * 1), ry: f(.6 + rr() * .8), fill: dark, opacity: .55 });
-  for (const sd of [-1, 1]) {
-    E(g, 'circle', { cx: sd * 3.6, cy: -7.2, r: 2.3, fill: col, stroke: dark, 'stroke-width': .6 });
-    E(g, 'circle', { cx: sd * 3.9, cy: -7.4, r: 1.3, fill: '#1a1a12' });
-    E(g, 'circle', { cx: sd * 3.4, cy: -7.9, r: .45, fill: '#fff', opacity: .9 });
-  }
-}
-
 function spriteSVG(w, h, draw, scale = 2) { const s = newSVG(w, h, scale); draw(s); return s; }
 async function spriteSet(key) {
   const out = {};
@@ -734,7 +708,6 @@ async function spriteSet(key) {
     out.flower = await Promise.all([0, 1].map(i => raster(spriteSVG(130, 130, s => { lotusLeafArt(s, 65, 65, 46, 40 + i * 140, false, 950 + i); lotusFlowerArt(s, 65, 64, 28, 960 + i); }))));   // hoa vươn lên giữa lá
     out.bud = [await raster(spriteSVG(60, 60, s => lotusBudArt(s, 30, 30)))];
   }
-  if (key !== 'winter') out.frog = await Promise.all(['#6b8a3e', '#7d8f4a', '#5a6e36'].map((c, i) => raster(spriteSVG(40, 40, s => frogArt(s, 300 + i, c), 4))));
   if (key === 'spring') out.fall = await Promise.all([0, 1].map(i => raster(spriteSVG(20, 20, s => Ink.petal(s, 10, 10, 2.2, i * 40, i ? '#f6c9d4' : '#f2b8c6')))));
   if (key === 'spring') out.bloom = await Promise.all(['#f7d6de', '#fbe9ee'].map(c => raster(spriteSVG(30, 36, s => {
     Ink.E(s, 'path', { d: 'M15,34 C14,30 16,25 15,20', fill: 'none', stroke: '#5a3a2a', 'stroke-width': 1, 'stroke-linecap': 'round' });
@@ -1478,6 +1451,19 @@ const glowTex = (() => {
   x.fillStyle = g; x.fillRect(0, 0, 64, 64); return new THREE.CanvasTexture(c);
 })();
 const glowScene = new THREE.Scene(), nightScene = new THREE.Scene();
+// Ếch: "Frog" by Thunk3D scanner (sketchfab.com/Diana123456), CC BY 4.0 -- đã giảm lưới, xoay thẳng trục (đầu +z,
+// dài 1 đơn vị, đáy y = 0) và tô lại màu thuỷ mặc theo đỉnh (lưng xanh rêu loang đốm mực, bụng ngà, mắt vàng)
+let FROG = null;
+new GLTFLoader().loadAsync('/models/frog.glb').then(g => {
+  let geo = null; g.scene.traverse(o => { if (o.isMesh && !geo) geo = o.geometry; });
+  // túi kêu: tìm cằm thật trên hình khối -- điểm nhô ra trước nhất ở dải dưới mõm, gần trục giữa
+  const P = geo.attributes.position, v = new THREE.Vector3(); let sn = null, chin = null;
+  for (let i = 0; i < P.count; i++) { v.fromBufferAttribute(P, i); if (!sn || v.z > sn.z) sn = v.clone(); }
+  for (let i = 0; i < P.count; i++) { v.fromBufferAttribute(P, i); if (Math.abs(v.x - sn.x) < .035 && v.y < sn.y - .07 && v.y > sn.y - .16 && (!chin || v.z > chin.z)) chin = v.clone(); }
+  FROG = { geo, sac: new THREE.SphereGeometry(.065, 20, 14), chin: chin.add(new THREE.Vector3(0, .005, -.035)) };   // tâm hơi lùi vào trong cằm
+});
+overScene.add(new THREE.HemisphereLight('#fffaf0', '#6a7058', 1.6));
+{ const l = new THREE.DirectionalLight('#fff8e8', 2.2); l.position.set(-24, 62, -20); overScene.add(l); }
 function glow(size, col, y, additive = true) {
   const m = new THREE.Mesh(new THREE.PlaneGeometry(size, size), new THREE.MeshBasicMaterial({ map: glowTex, color: col, transparent: true, opacity: 0, blending: additive ? THREE.AdditiveBlending : THREE.NormalBlending, depthTest: false, depthWrite: false, toneMapped: false }));
   m.rotation.x = -Math.PI / 2; m.position.y = y; return m;
@@ -1573,49 +1559,72 @@ class Firefly {
 
 // Ếch: ngồi trên lá sen (trôi theo lá), kêu thành tràng 2-4 tiếng: túi kêu phồng xẹp, mỗi tiếng làm gợn mặt nước;
 // thỉnh thoảng nhảy tõm xuống nước rồi lặn mất, sau đó con khác leo lên lá khác.
+// chất liệu ếch: tô bậc như cá + bớt rực ngả màu giấy + viền mực theo dáng
+function frogMat(opts) {
+  const m = new THREE.MeshToonMaterial({ gradientMap, transparent: true, ...opts });
+  m.onBeforeCompile = sh => {
+    sh.fragmentShader = sh.fragmentShader.replace('#include <dithering_fragment>', `#include <dithering_fragment>
+      {
+        float l = dot(gl_FragColor.rgb, vec3(.299, .587, .114));
+        gl_FragColor.rgb = mix(gl_FragColor.rgb, vec3(l) * vec3(1.03, 1.0, .88), .25);
+        float rim = 1.0 - abs(dot(normal, normalize(vViewPosition)));
+        gl_FragColor.rgb = mix(gl_FragColor.rgb, vec3(.08, .09, .07), smoothstep(.55, .85, rim) * .9);
+      }`);
+  };
+  return m;
+}
+
 class Frog {
   constructor(host) {
-    this.host = host; this.ang = rnd(0, TAU); this.r = host.rad * rnd(.15, .45); this.rot = rnd(0, TAU);
-    this.m = spriteMesh(sprites.frog[Math.floor(Math.random() * sprites.frog.length)], 1.5); this.m.renderOrder = 13; overScene.add(this.m);
-    this.sac = glow(.55, '#efe9cc', FLOAT_Y + .06, false); this.sac.renderOrder = 14; overScene.add(this.sac);
+    this.host = host; this.ang = rnd(0, TAU); this.r = host.rad * rnd(.1, .4); this.rot = rnd(0, TAU);
+    this.mats = [frogMat({ vertexColors: true }), frogMat({ color: '#efe6c2' })];
+    this.m = new THREE.Group(); this.m.scale.setScalar(1.02); this.seed = rnd(0, 9);
+    const body = new THREE.Mesh(FROG.geo, this.mats[0]); body.renderOrder = 13; this.m.add(body);
+    this.sacM = new THREE.Mesh(FROG.sac, this.mats[1]); this.sacM.position.copy(FROG.chin); this.sacM.renderOrder = 13; this.m.add(this.sacM);   // túi kêu dưới cằm
+    this.sh = glow(1.35, '#000', FLOAT_Y + .02, false); this.sh.renderOrder = 12.5;
+    overScene.add(this.sh, this.m);
     this.state = 'sit'; this.a = 0; this.croakT = rnd(1, 5); this.croak = -1; this.jumpT = rnd(18, 45); this.dying = false;
   }
-  face() { const r = this.m.rotation.z; return [-Math.sin(r), -Math.cos(r)]; }   // đầu ếch = mép trên ảnh
+  face() { const r = this.m.rotation.y; return [Math.sin(r), Math.cos(r)]; }   // đầu ếch hướng +z của mô hình
   update(dt, t, k) {
     const d = this.host;
+    this.m.scale.y = 1.02 * (1 + .025 * Math.sin(t * 3.1 + this.seed));   // thở
     if (this.state === 'sit') {
       const hr = d.m.rotation.z + this.ang;
       this.x = d.x + Math.cos(hr) * this.r; this.z = d.z + Math.sin(hr) * this.r; this.y = FLOAT_Y + .05;
-      this.m.rotation.z = d.m.rotation.z + this.rot;
+      this.m.rotation.y = this.rot - d.m.rotation.z;                       // xoay cùng lá
       if (d.dying || d.state !== 'float') this.jumpT = 0;
       this.croakT -= dt;
       if (this.croakT < 0 && this.croak < 0) { this.croak = 0; this.n = 2 + Math.floor(Math.random() * 3); this.lastI = -1; }
       if (this.croak >= 0) {
         this.croak += dt; const i = Math.floor(this.croak / .32), u = (this.croak % .32) / .32;
-        if (i !== this.lastI && i < this.n) { this.lastI = i; const [uu, vv] = w2uv(this.x, SURF_Y, this.z); splash(uu, vv, .005, .07); }   // mỗi tiếng kêu một vòng gợn
         this.sacS = i < this.n ? Math.sin(Math.PI * u) : 0;
+        if (i !== this.lastI && i < this.n) { this.lastI = i; const [uu, vv] = w2uv(this.x, SURF_Y, this.z); splash(uu, vv, .005, .07); }   // mỗi tiếng kêu một vòng gợn
         if (i >= this.n) { this.croak = -1; this.croakT = rnd(2, 7); this.sacS = 0; }
-      } else this.sacS = 0;
+      }
       this.jumpT -= dt;
       if (this.jumpT < 0 || this.dying) {
         const [fx, fz] = this.face(), L = rnd(3, 5);
-        this.state = 'jump'; this.u = 0; this.from = [this.x, this.z]; this.to = [this.x + fx * L, this.z + fz * L]; this.sacS = 0;
+        this.state = 'jump'; this.u = 0; this.from = [this.x, this.z]; this.to = [this.x + fx * L, this.z + fz * L];
       }
     } else if (this.state === 'jump') {
       this.u += dt / .55; const u = Math.min(1, this.u);
       this.x = lerp(this.from[0], this.to[0], u); this.z = lerp(this.from[1], this.to[1], u); this.y = FLOAT_Y + .05 + Math.sin(Math.PI * u) * 1.4;
-      this.m.scale.setScalar(1 + Math.sin(Math.PI * u) * .25);
-      if (u >= 1) { const [uu, vv] = w2uv(this.x, SURF_Y, this.z); splash(uu, vv, .008, .4); this.state = 'gone'; this.m.scale.setScalar(1); }
-    } else this.a -= dt / .5;
+      this.m.rotation.x = -Math.sin(Math.PI * u) * .5;                     // chúi đầu khi bay
+      if (u >= 1) { const [uu, vv] = w2uv(this.x, SURF_Y, this.z); splash(uu, vv, .008, .4); this.state = 'gone'; }
+    } else { this.a -= dt / .5; this.y -= dt * .8; }
     if (this.state !== 'gone') this.a = Math.min(1, this.a + dt / 1.2);
-    const o = clamp(this.a, 0, 1) * k;
-    this.m.material.opacity = o; this.m.position.set(this.x, this.y, this.z);
-    const [fx, fz] = this.face();
-    this.sac.position.set(this.x + fx * .42, this.y + .02, this.z + fz * .42);
-    this.sac.scale.setScalar(.3 + this.sacS * .9); this.sac.material.opacity = o * this.sacS * .9;
+    const o = clamp(this.a, 0, 1);
+    for (const m of this.mats) m.opacity = o;
+    this.sacM.scale.setScalar(.2 + (this.sacS || 0) * 1.05);   // túi kêu phồng xẹp theo từng tiếng
+    this.m.position.set(this.x, this.y, this.z);
+    this.sh.position.set(this.x + .12, FLOAT_Y + .02, this.z + .17); this.sh.material.opacity = o * .35 * (this.state === 'jump' ? .5 : 1);
   }
   get done() { return this.state === 'gone' && this.a <= 0; }
-  dispose() { for (const m of [this.m, this.sac]) { overScene.remove(m); m.geometry.dispose(); m.material.dispose(); } }
+  dispose() {
+    overScene.remove(this.m, this.sh); this.sh.geometry.dispose(); this.sh.material.dispose();
+    for (const m of this.mats) m.dispose();
+  }
 }
 
 function setNight(on) {
@@ -1643,7 +1652,7 @@ function updateNight(dt, t) {
   if (alive.length > want) alive[0].dying = true;
   for (let i = N.ff.length - 1; i >= 0; i--) { const f = N.ff[i]; f.update(dt, t, k); if (f.dying && f.fade <= 0) { f.dispose(); N.ff.splice(i, 1); } }
   // ếch: lên lá sen còn trống khi trời tối
-  const wantF = N.on && sprites.frog ? set.frogs : 0, liveF = N.frogs.filter(f => f.state === 'sit' && !f.dying);
+  const wantF = N.on && FROG ? set.frogs : 0, liveF = N.frogs.filter(f => f.state === 'sit' && !f.dying);
   N.frogT -= dt;
   if (liveF.length < wantF && N.frogT < 0) {
     const hosts = drifters.filter(d => d.big && !d.ice && !d.flower && !d.dying && d.state === 'float' && !N.frogs.some(f => f.host === d && f.state === 'sit'));

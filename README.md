@@ -18,6 +18,7 @@ npm run dev
 ## Ghi công
 
 - Model cá: ["Koi Fish"](https://sketchfab.com/3d-models/koi-fish-236859b809984f52b70c94fd040b9c59) by 7PLUS, giấy phép [CC BY 4.0](http://creativecommons.org/licenses/by/4.0/). Mesh được biến dạng và tô lại màu bằng shader.
+- Model ếch: ["Frog"](https://sketchfab.com/3d-models/frog-436deb1555fa42b9bc146e1b6b0d1ebc) by Thunk3D scanner (Diana123456), giấy phép [CC BY 4.0](http://creativecommons.org/licenses/by/4.0/). Đã giảm lưới, xoay lại trục và tô lại màu thuỷ mặc theo đỉnh.
 
 ## Demo khác
 
