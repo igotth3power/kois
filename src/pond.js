@@ -966,6 +966,11 @@ function pecTexture(variant, seed = 1) {
 const PEC_GEO = (() => { const W = 1.3, H = W * 260 / 220; return new THREE.PlaneGeometry(W, H).translate(W / 2 - 8 / 220 * W, -(H / 2 - 90 / 260 * H), 0).rotateX(-Math.PI / 2); })();
 
 
+// nhịp cua (chỉnh qua window.KOI_TUNE): t1/t2 = thời lượng stage 1 (cong C) / stage 2 (bật ngược) của cú cua thường (giây),
+// depth = đuôi lệch tối đa khi cong C (đơn vị mesh, thân dài 6.39), counter = độ sâu bật ngược so với cong C,
+// follow = mức thân bám vệt cua, relax/straighten = sau bao lâu và duỗi bao nhiêu khi cua kéo dài
+const TUNE = window.KOI_TUNE = { t1: .22, t2: 1, depth: .25, counter: .45, follow: .85, relax: 1.3, straighten: .35 };
+const smooth01 = x => x * x * (3 - 2 * x);
 const KOI_SCALE = 1.6, KOI_PIVOT = 1.7;              // KOI_PIVOT: đơn vị mesh, dời thân ra sau để điểm xoay ở 1/3 trước
 const RIPPLE = [];                                   // nguồn gợn cho shader sóng trong frame này
 const splash = (u, v, r, a) => { if (RIPPLE.length < 12) RIPPLE.push([u, v, r, a]); };
@@ -1004,13 +1009,15 @@ class Koi {
     waterScene.add(this.root);
   }
   head() { const L = (2.87 - KOI_PIVOT) * this.size * KOI_SCALE; return [this.x + Math.cos(this.heading) * L, this.z + Math.sin(this.heading) * L]; }
+  // một cú cua: D = góc rẽ (rad, có dấu); fast = giật mình (C-start nhanh hơn nhiều)
+  startTurn(D, fast = false) { this.ev = { D, t: 0, prev: 0, fast, t1: fast ? .11 : TUNE.t1 * rnd(.85, 1.15), t2: fast ? .17 : TUNE.t2 }; }
   update(dt, t, others, pointer) {
     this.t = t;
-    // Lượn theo từng đợt: phần lớn thời gian bơi gần thẳng, thỉnh thoảng một cú cua ngắn rồi lại thẳng
-    this.turnT = (this.turnT ?? rnd(1, 6)) - dt;
-    if (this.turnT < 0) { this.turnDur = this.turnLen = rnd(.9, 1.8); this.turnRate = (Math.abs(this.net || 0) > .6 && Math.random() < .75 ? -Math.sign(this.net) : (Math.random() < .5 ? -1 : 1)) * rnd(.3, .6); /* ưu tiên cua ngược chiều đã rẽ nhiều */ this.turnT = this.turnLen + rnd(6, 14); }
-    let turn = Math.sin(t * .15 + this.seed) * .07, want = this.cruise;
-    if (this.turnDur > 0) { this.turnDur -= dt; turn += this.turnRate * Math.sin(Math.PI * clamp(1 - this.turnDur / this.turnLen, 0, 1)); }
+    // Đổi hướng theo nghiên cứu cá koi (Wu, Yang & Zeng 2007, J Exp Biol 210:4379): cá chủ yếu cua "một nhịp":
+    //  stage 1: thân cong chữ C về phía rẽ, gần hết góc rẽ diễn ra ở đây, thời lượng gần như cố định;
+    //  stage 2: thân + đuôi bật ngược sang bên kia (cú đẩy), sau đó bơi thẳng/lướt. Giữa các cú cua cá đi gần thẳng.
+    // Giật mình = C-start (Eaton 1988, cá vàng): stage 1 xoay thân 30-100° rất nhanh, stage 2 lao thẳng; quỹ đạo sau đó thẳng.
+    let want = this.cruise, desired, urg = 0;
     // Mồi: có độ trễ phản ứng, bơi tới, chậm lại, ngoi lên ngay dưới hạt, ngẩng đầu đớp.
     this.gulpCD = (this.gulpCD || 0) - dt; this.react = (this.react ?? rnd(.2, 1.2)) - dt;
     if (this.food && (this.food.state === 'gone' || this.food.state === 'suck')) this.food = null;
@@ -1020,46 +1027,89 @@ class Koi {
     }
     const food = this.food;
     this.pitchT = 0;
+    const [dx, dy] = w2d(this.x, this.z, this.y), e = pondE(dx, dy);
     if (food) {
       const [hx, hz] = this.head(), dh = Math.hypot(food.x - hx, food.z - hz);
-      turn = angDiff(Math.atan2(food.z - this.z, food.x - this.x), this.heading) * 3.2;
+      desired = Math.atan2(food.z - this.z, food.x - this.x);
       want = dh > 5 ? this.cruise * 1.8 : this.cruise * (.35 + dh / 7);
       this.ty = Math.min(-.45, food.y - .45);
       if (dh < 5) this.pitchT = food.state === 'float' ? .38 : .15;
       if (dh < 1.15 && Math.abs(this.y - food.y) < 1.3 && this.gulpCD <= 0) gulp(this);
+    } else {
+      // đích bơi ngẫu nhiên trong hồ (đổi định kỳ) + né cá khác: cộng vector rồi lấy hướng
+      this.goalT = (this.goalT ?? 0) - dt;
+      const gBack = this.goal && Math.abs(angDiff(Math.atan2(this.goal[1] - dy, this.goal[0] - dx), this.heading)) > 1.9;
+      // tới gần đích, hoặc đích đã lọt ra sau lưng (đi lướt qua) -> chọn đích mới, không quay lại quần quanh đích cũ
+      if (this.goalT < 0 || (this.goal && Math.hypot(this.goal[0] - dx, this.goal[1] - dy) < 90) || (gBack && e < .55)) {
+        let best = null, bs = -1e9;
+        // chấm điểm đích: ít phải rẽ, xa (bơi cắt ngang hồ thay vì men bờ), và rẽ NGƯỢC chiều đã rẽ nhiều gần đây
+        // -> không bị cuốn vào vòng một chiều dọc bờ
+        for (let i = 0; i < 8; i++) {
+          const g = pondPt(rnd(0, TAU), rnd(.05, .65)), a = angDiff(Math.atan2(g[1] - dy, g[0] - dx), this.heading);
+          const sc = -.5 * Math.abs(a) + .004 * Math.hypot(g[0] - dx, g[1] - dy) - (Math.sign(a) === Math.sign(this.net || 0) ? Math.min(1.2, Math.abs(this.net || 0) / 2.5) : 0) + rnd(0, .8);
+          if (sc > bs) { bs = sc; best = g; }
+        }
+        this.goal = best; this.goalT = rnd(8, 16);
+      }
+      const toGoal = Math.atan2(this.goal[1] - dy, this.goal[0] - dx);
+      let vx = Math.cos(toGoal), vz = Math.sin(toGoal);
+      for (const o of others) { if (o === this) continue; const ddx = this.x - o.x, ddz = this.z - o.z, d = Math.hypot(ddx, ddz), R = 7 * this.size; if (d < R && d > 0 && Math.abs(o.y - this.y) < 1.6) { vx += ddx / d * 1.3 * (1 - d / R); vz += ddz / d * 1.3 * (1 - d / R); } }
+      desired = Math.atan2(vz, vx);
+      urg = clamp((e - .55) / .35, 0, 1);   // gần bờ: cua sớm hơn, dứt khoát hơn
     }
-    const [dx, dy] = w2d(this.x, this.z, this.y), e = pondE(dx, dy);
-    // tránh bờ: bắt đầu sớm, tăng dần theo bình phương -> vòng cua đều, không bẻ lái gấp
-    // đích bơi ngẫu nhiên trong hồ (đổi định kỳ): cá rẽ cả trái lẫn phải, đường bơi thành số 8 chứ không chỉ vòng một chiều
-    this.goalT = (this.goalT ?? 0) - dt;
-    if (this.goalT < 0 || (this.goal && Math.hypot(this.goal[0] - dx, this.goal[1] - dy) < 60)) { this.goal = pondPt(rnd(0, TAU), rnd(.05, .65)); this.goalT = rnd(8, 16); }
-    const toGoal = Math.atan2(this.goal[1] - dy, this.goal[0] - dx);
-    turn += angDiff(toGoal, this.heading) * .22;
-    if (e > .5) turn += angDiff(toGoal, this.heading) * Math.min(2.2, (e - .5) * (e - .5) * 22);
-    for (const o of others) { if (o === this) continue; const ddx = this.x - o.x, ddz = this.z - o.z, d = Math.hypot(ddx, ddz), R = (this.food ? 4 : 7) * this.size; if (d < R && d > 0 && Math.abs(o.y - this.y) < 1.6) turn += angDiff(Math.atan2(ddz, ddx), this.heading) * (this.food ? .25 : .35) * (1 - d / R); }
-    // Giật mình: chốt MỘT hướng thoát ngay lúc bị động vào mặt nước rồi giữ nguyên, không bám theo chuột.
+    const err = angDiff(desired, this.heading);
+    this.gapT = (this.gapT ?? rnd(.5, 2)) - dt; this.lockT = (this.lockT || 0) - dt;
+    // Giật mình: chốt MỘT hướng thoát lúc bị động vào mặt nước (ngược phía con trỏ), C-start rồi lao thẳng.
     this.startleCD = (this.startleCD || 0) - dt;
     if (pointer && this.startle <= 0 && this.startleCD <= 0 && pointer.speed > 18) {
       const ddx = this.x - pointer.x, ddz = this.z - pointer.z, d = Math.hypot(ddx, ddz);
-      if (d < 11) { this.startle = rnd(.9, 1.3); this.burstT = 0; this.escape = Math.atan2(ddz, ddx) + rnd(-.35, .35); this.startleCD = this.startle + rnd(1.8, 3); this.food = null; }
+      if (d < 11) {
+        let D = angDiff(Math.atan2(ddz, ddx) + rnd(-.3, .3), this.heading);
+        if (Math.abs(D) < .4) D = Math.sign(D || 1) * .4;
+        this.startTurn(clamp(D, -2.4, 2.4), true);
+        this.startle = rnd(1, 1.4); this.burstT = 0; this.startleCD = this.startle + rnd(1.8, 3); this.food = null;
+        // đích mới nằm phía trước hướng thoát -> sau cú lao không vòng ngược lại
+        const h = this.heading + D, [ax, ay] = w2d(this.x + Math.cos(h) * 14, this.z + Math.sin(h) * 14, this.y);
+        this.goal = [lerp(ax, POND.cx, .3), lerp(ay, POND.cy, .3)]; this.goalT = rnd(4, 7);
+      }
     }
-    if (this.startle > 0) { this.startle -= dt; turn = angDiff(this.escape, this.heading) * 6; want = this.cruise * 4; }
-    turn = clamp(turn, -3.2, 3.2);
+    if (this.startle > 0) { this.startle -= dt; want = this.cruise * 4; }
+    // cú cua một nhịp khi lệch hướng đủ lớn; giữa hai cú có khoảng nghỉ (bơi thẳng/lướt)
+    if (!this.ev && this.lockT <= 0 && this.gapT <= 0) {
+      const thr = food ? .22 : lerp(.6, .18, urg);
+      if (Math.abs(err) > thr) this.startTurn(clamp(err * rnd(.9, 1.05), -1.7, 1.7));   // rẽ gần đủ góc lệch: rẽ thiếu đều đặn sẽ thành vòng quần quanh đích
+      else {
+        // thỉnh thoảng rẽ tự do, ưu tiên ngược chiều đã rẽ nhiều -> đường bơi lượn cả hai phía
+        this.turnT = (this.turnT ?? rnd(1, 6)) - dt;
+        if (this.turnT < 0 && !food && urg < .3) { this.turnT = rnd(5, 12); this.startTurn((Math.abs(this.net || 0) > .8 && Math.random() < .75 ? -Math.sign(this.net) : (Math.random() < .5 ? -1 : 1)) * rnd(.35, .9)); }
+      }
+    }
+    // lệch nhỏ: chỉnh hướng liên tục rất nhẹ (cua nhiều nhịp), thân gần như không cong
+    const contT = clamp(err * (food ? .6 : .12 + urg * .9), -(food ? .5 : .07 + urg * .8), food ? .5 : .07 + urg * .8);
+    this.contW = lerp(this.contW || 0, contT, 1 - Math.exp(-dt * 2));
+    let evRot = 0; this.cBend = 0;
+    if (this.ev) {
+      const ev = this.ev; ev.t += dt;
+      // ~80% góc rẽ trong stage 1 (C), phần còn lại trong stage 2 (bật ngược)
+      const prog = ev.t < ev.t1 ? .8 * smooth01(ev.t / ev.t1) : .8 + .2 * smooth01(Math.min(1, (ev.t - ev.t1) / ev.t2));
+      evRot = ev.D * (prog - ev.prev); ev.prev = prog;
+      let a;
+      if (ev.t < ev.t1) a = Math.sin(Math.PI / 2 * ev.t / ev.t1);                                  // 0 -> C sâu nhất
+      else { const c = Math.cos(1.5 * Math.PI * Math.min(1, (ev.t - ev.t1) / ev.t2)); a = c < 0 ? c * TUNE.counter : c; }   // C -> bật ngược -> thẳng
+      this.cBend = Math.sign(ev.D) * a * Math.min(1.4, Math.abs(ev.D) / 1.2);
+      if (ev.t >= ev.t1 && !ev.pushed) { ev.pushed = true; this.cur += ev.fast ? this.cruise * 2.2 : this.cruise * .25 * Math.min(1, Math.abs(ev.D)); }   // cú đẩy của stage 2
+      if (ev.t >= ev.t1 + ev.t2) { this.ev = null; this.gapT = food ? rnd(.15, .4) : rnd(.8, 2.6) * (1 - urg * .7); if (ev.fast) this.lockT = rnd(.8, 1.3); }
+    }
+    this.evEnv = lerp(this.evEnv || 0, this.ev ? 1 : 0, 1 - Math.exp(-dt * 10));
     this.burstT -= dt;
     if (this.burstT <= 0) { this.burstT = rnd(2.4, 4.2); this.thrust = rnd(.78, .95); }   // nhịp quẫy/lướt dài, lực đẩy đều
     const kick = this.burstT > (this.startle > 0 ? 0 : 1.0) ? 1 : 0;
     const thrust = Math.max(kick * this.thrust, (want - this.cur) / 3);
     this.cur = clamp(this.cur + (thrust * 4.2 - this.cur * .55) * dt, .4, this.cruise * 4.5);
     this.beat = lerp(this.beat, clamp(.35 + thrust * .9, .3, 1.6), 1 - Math.exp(-dt * 4));   // đang bơi thì luôn quẫy đều hai bên
-    // quán tính góc: tốc độ quay tăng/giảm dần, giới hạn theo vận tốc
-    const wMax = .8 + this.cur * .35, wT = clamp(turn * clamp(.4 + this.cur / 5, .4, 2), -wMax, wMax);
-    // lệnh rẽ qua 2 tầng lọc + giới hạn gia tốc quay -> tốc độ quay đổi trơn, vòng cua tròn trịa
-    const kq = 1 - Math.exp(-dt * (this.startle > 0 ? 8 : 1.6));
-    this.turnF = lerp(this.turnF || 0, wT, kq);
-    const target = lerp(this.angVel || 0, this.turnF, kq), aMax = (this.startle > 0 ? 9 : 1.8) * dt;
-    this.angVel = (this.angVel || 0) + clamp(target - (this.angVel || 0), -aMax, aMax);
-    this.heading += this.angVel * dt;
-    this.net = (this.net || 0) * Math.exp(-dt / 10) + this.angVel * dt;   // tổng lượng đã rẽ gần đây (có dấu)
+    this.heading += this.contW * dt + evRot;
+    this.angVel = this.contW + evRot / Math.max(dt, 1e-4);
+    this.net = (this.net || 0) * Math.exp(-dt / 10) + this.contW * dt + evRot;   // tổng lượng đã rẽ gần đây (có dấu)
     if (this.startle <= 0) this.cur *= 1 - Math.min(.25, Math.abs(this.angVel) * .2) * dt * 2;   // chậm lại khi cua
     this.turn = this.angVel;
     this.x += Math.cos(this.heading) * this.cur * dt; this.z += Math.sin(this.heading) * this.cur * dt;
@@ -1073,7 +1123,7 @@ class Koi {
     // tần số quẫy tỉ lệ vận tốc (~0.8 thân/nhịp); biên độ theo lực đẩy, đổi mượt; lướt thì thân duỗi dần
     const Lw = 6.39 * this.size * KOI_SCALE;
     this.phase += dt * TAU * (.28 + this.cur / (.8 * Lw) + this.beat * .2);
-    this.U.uPhase.value = this.phase; this.U.uAmp.value = lerp(this.U.uAmp.value, .09 + this.beat * .34, 1 - Math.exp(-dt * 2.5)); {
+    this.U.uPhase.value = this.phase; this.U.uAmp.value = lerp(this.U.uAmp.value, (.09 + this.beat * .34) * (1 - .7 * this.evEnv), 1 - Math.exp(-dt * 2.5)); /* lúc cua, cú cong C + bật ngược thay cho nhịp quẫy */ {
       // thân cong theo độ cong đường bơi kappa = omega / v (đổi sang đơn vị mesh): đuôi nằm đúng trên vệt cũ
       // Thân là chuỗi 8 đốt: đốt đầu theo hướng bơi, mỗi đốt sau đuổi theo hướng đốt trước với độ trễ theo vận tốc.
       // Góc giữa hai đốt kề nhau bị giới hạn + làm mượt -> khúc cong phân bố đều như chữ C, không gập ở một điểm.
@@ -1082,14 +1132,23 @@ class Koi {
       const kf = 1 - Math.exp(-dt * Math.max(this.cur, .8) / (seg * sc) * 1.4);
       for (let k = 1; k <= 8; k++) {
         A[k] += angDiff(A[k - 1], A[k]) * kf;
-        // uốn chữ C chủ động khi cua: mỗi đốt lệch thêm một góc tỉ lệ tốc độ quay -> thân ôm theo vòng cua
-        A[k] += angDiff(A[k - 1] - this.angVel * .16, A[k]) * (1 - Math.exp(-dt * 5));
+                A[k] += angDiff(A[k - 1], A[k]) * (1 - Math.exp(-dt * 5));
         const dk = angDiff(A[k], A[k - 1]); A[k] = A[k - 1] + .3 * Math.tanh(dk / .3);   // bão hoà mềm: không gãy gấp khi chạm giới hạn
       }
       for (let k = 1; k < 8; k++) A[k] += angDiff(A[k - 1] + angDiff(A[k + 1], A[k - 1]) / 2, A[k]) * .4;
       // dựng toạ độ mesh từ mõm xuống đuôi (+x về phía đầu, +z = pháp tuyến trái của hướng bơi)
       const X = [2.87], Z = [0];
-      for (let k = 1; k <= 8; k++) { const r = angDiff(A[k - 1] + angDiff(A[k], A[k - 1]) / 2, this.heading); /* hướng đoạn = trung bình 2 đốt */ X.push(X[k - 1] - Math.cos(r) * seg); Z.push(Z[k - 1] - Math.sin(r) * seg); }
+      for (let k = 1; k <= 8; k++) {
+        // hướng đoạn = (vệt cua, giảm theo follow) + dáng chữ C như bản vẽ: z(s) = depth * cBend * ((s-.4)^2 - .16) / .2
+        // -> hai đầu cùng cụp vào trong vòng cua, đuôi lệch đúng depth; góc lấy từ đạo hàm nên thân không bị kéo dài
+        const sm = (k - .5) / 8, dz = TUNE.depth * this.cBend * 2 * (sm - .4) / (.2 * 6.39);
+        // phần cong theo vệt cua chỉ là nhất thời: trừ dần bản trễ của nó (rSlow) -> vào cua thân cong, cua kéo dài thì
+        // thân tự duỗi thẳng sau ~relax giây và hướng đi đổi bằng các cú quẫy đuôi, không giữ dáng trái chuối
+        const rf = angDiff(A[k - 1] + angDiff(A[k], A[k - 1]) / 2, this.heading) * TUNE.follow, rs = this.rSlow || (this.rSlow = new Array(9).fill(0));
+        rs[k] = lerp(rs[k], rf, 1 - Math.exp(-dt / TUNE.relax));
+        const r = rf - rs[k] * TUNE.straighten - Math.asin(clamp(dz, -.9, .9));
+        X.push(X[k - 1] - Math.cos(r) * seg); Z.push(Z[k - 1] - Math.sin(r) * seg);
+      }
       // dời cho điểm xoay (s0, gần đầu) trùng gốc toạ độ của cá
       const s0 = (2.87 - KOI_PIVOT) / 6.39, pf = s0 * 8, pi = Math.floor(pf), pt = pf - pi;
       const ox = KOI_PIVOT - lerp(X[pi], X[pi + 1], pt), oz = -lerp(Z[pi], Z[pi + 1], pt);
