@@ -185,20 +185,6 @@ const Ink = (() => {
     E(p, 'path', { d: `M0,-3 C2.4,-3 3,0 1.6,3 L0,2 L-1.6,3 C-3,0 -2.4,-3 0,-3Z`, transform: `translate(${f(x)},${f(y)}) rotate(${f(rot)}) scale(${s})`, fill: col, stroke: '#7a4a52', 'stroke-width': .25, opacity: .92 });
   }
 
-  function maple(p, x, y, r, rot, col) {
-    const tips = [[0, 1], [-38, .92], [38, .92], [-78, .7], [78, .7], [-118, .42], [118, .42]];
-    const pts = [];
-    tips.sort((a, b) => a[0] - b[0]).forEach((t, i, arr) => {
-      const a = (t[0] - 90) * Math.PI / 180; pts.push([Math.cos(a) * r * t[1], Math.sin(a) * r * t[1]]);
-      if (i < arr.length - 1) { const m = ((t[0] + arr[i + 1][0]) / 2 - 90) * Math.PI / 180; pts.push([Math.cos(m) * r * .38, Math.sin(m) * r * .38]); }
-    });
-    const g = G(p, { transform: `translate(${f(x)},${f(y)}) rotate(${f(rot)})` });
-    E(g, 'path', { d: 'M' + pts.map(q => f(q[0]) + ',' + f(q[1])).join('L') + `L0,${f(r * .2)}Z`, fill: col, opacity: .9, filter: 'url(#brushF)', stroke: '#3a1a10', 'stroke-width': .4 });
-    const v = G(g, { stroke: '#3a1a10', 'stroke-width': .35, opacity: .55 });
-    tips.forEach(t => { const a = (t[0] - 90) * Math.PI / 180; E(v, 'line', { x1: 0, y1: 0, x2: f(Math.cos(a) * r * t[1] * .85), y2: f(Math.sin(a) * r * t[1] * .85) }); });
-    E(g, 'line', { x1: 0, y1: 0, x2: 0, y2: f(r * .55), stroke: '#3a1a10', 'stroke-width': .6 });
-  }
-
   function lotusLeaf(p, x, y, r, rot, col = '#1d1d1d', op = .22) {
     const a0 = (rot - 14) * Math.PI / 180, a1 = (rot + 14) * Math.PI / 180;
     const d = `M${f(x)},${f(y)} L${f(x + Math.cos(a1) * r)},${f(y + Math.sin(a1) * r)} A${r},${r} 0 1 1 ${f(x + Math.cos(a0) * r)},${f(y + Math.sin(a0) * r)} Z`;
@@ -316,7 +302,7 @@ const Ink = (() => {
   }
 
 
-  return { NS, R, E, G, f, bez, smooth, blob, taperF, stroke, branch, paper, pond, rock, ripple, needles, blossom, petal, maple, lotusLeaf, lotusFlower, bambooLeaf, bambooCluster, grass, calli, seal, splatter, lantern, bridge, stepStones };
+  return { NS, R, E, G, f, bez, smooth, blob, taperF, stroke, branch, paper, pond, rock, ripple, needles, blossom, petal, lotusLeaf, lotusFlower, bambooLeaf, bambooCluster, grass, calli, seal, splatter, lantern, bridge, stepStones };
 })();
 const INK_DEFS = `
     <filter id="brush" x="-15%" y="-15%" width="130%" height="130%">
@@ -478,17 +464,7 @@ function shoreArt(S, key) {
     Ink.rock(s, x, y, sz, 700 + i, { moss: S.moss, hi: S.paper });
     if (key === 'winter') E(s, 'path', { d: blob(x - sz * .1, y - sz * .3, sz * .75, sz * .38, 800 + i, .3, 8), fill: '#fdfcf8', opacity: .95, filter: 'url(#brushF)' });
   });
-  const gc = key === 'winter' ? '#6a6050' : S.grass;
-  for (let i = 0; i < 22; i++) {
-    const th = r() * TAU, [x, y] = pondPt(th, 1.12 + r() * .1);
-    if ((x > 600 && y < 150) || (x < 140 && y < 260)) continue;
-    Ink.grass(s, x, y, 4 + Math.round(r() * 4), 900 + i, gc, 24 + r() * 16);
-  }
-  if (key === 'summer' || key === 'spring') {
-    // khóm diên vĩ (iris) ở góc dưới phải
-    for (let i = 0; i < 3; i++) Ink.grass(s, 840 + i * 26, 520 - i * 6, 7, 950 + i, '#2f4a24', 56);
-    if (key === 'summer') for (const [x, y] of [[846, 470], [872, 462], [900, 476]]) { E(s, 'path', { d: `M${x},${y} q-6,-8 0,-14 q6,6 0,14 q8,-4 12,4 q-8,4 -12,-4 q-8,-4 -12,4 q8,4 12,-4Z`, fill: '#5b4b8a', opacity: .9, filter: 'url(#brushF)' }); }
-  }
+  // cỏ ven bờ + khóm diên vĩ: sprite riêng lay theo gió (buildPlants)
   Ink.stepStones(s, [[150, 470, 13], [118, 500, 12], [92, 530, 13], [70, 556, 12]], 61);
   Ink.lantern(s, 70, 430, 1.25);
   if (key === 'winter') E(s, 'path', { d: blob(70, 412, 20, 8, 970, .2, 8), fill: '#fdfcf8', opacity: .95, filter: 'url(#brushF)' });
@@ -665,7 +641,89 @@ function lotusBudArt(s, cx, cy) {
   E(s, 'path', { d: `M${cx - 7},${cy + 9} Q${cx},${cy + 3} ${cx + 7},${cy + 9}`, fill: 'none', stroke: '#5c7046', 'stroke-width': 2.4, 'stroke-linecap': 'round' });
 }
 
-function spriteSVG(w, h, draw) { const s = newSVG(w, h, 2); draw(s); return s; }
+// Lá phong Nhật (Acer palmatum) nhìn từ trên: 7 thuỳ xẻ sâu hình mũi mác, mép răng cưa kép, chóp nhọn dài;
+// màu loang từ cam vàng ở gốc sang đỏ ở chóp, mép đọng màu đậm, gân chính toả từ cuống, gân phụ mảnh,
+// viền mực mảnh đứt quãng. Cuống cong nhẹ, đầu cuống giữ đúng (x, y + r*.553) để khớp STEM.autumn.
+function mapleArt(s, x, y, r, col, seed) {
+  const { E, G, R: Rng, f } = Ink, rr = Rng(seed), id = 'mp' + seed;
+  const mix = (a, b, t) => { const pa = [1, 3, 5].map(i => parseInt(a.substr(i, 2), 16)), pb = [1, 3, 5].map(i => parseInt(b.substr(i, 2), 16)); return '#' + pa.map((v, i) => Math.round(v + (pb[i] - v) * t).toString(16).padStart(2, '0')).join(''); };
+  const light = mix(col, '#f0c050', .55), dark = mix(col, '#3a0e08', .45), ink = mix(col, '#1a0804', .75);
+  // [góc lệch so với trục trên (độ), chiều dài tương đối, bề rộng tương đối]
+  const lobes = [[0, 1, .19], [-42, .95, .185], [42, .95, .185], [-84, .78, .17], [84, .78, .17], [-124, .46, .14], [124, .46, .14]]
+    .map(([a, l, w]) => [a + (rr() - .5) * 8, l * (.92 + rr() * .14), w * (.9 + rr() * .2)]).sort((p, q) => p[0] - q[0]);
+  const rs = r * .16, pts = [], tips = [], gapT = Math.tan(19 * Math.PI / 180);   // thuỳ kề nhau cách ~40°: bề rộng gần gốc không vượt nửa khe -> không chồng
+  const P = (ang, along, side) => { const u = (ang - 90) * Math.PI / 180; return [x + Math.cos(u) * along - Math.sin(u) * side, y + Math.sin(u) * along + Math.cos(u) * side]; };
+  for (const [ang, l, w] of lobes) {
+    const L = r * l, W = r * w, n = 16, edge = [];
+    const width = t => Math.min(W * Math.pow(Math.sin(Math.PI * Math.min(1, Math.pow(t, .75))), 1.1) * (1 - .2 * t), (rs + t * (L - rs)) * gapT);
+    for (let i = 0; i <= n; i++) {
+      const t = i / n, tooth = t > .3 && t < .96 ? (i % 2 ? .13 : -.05) * W * (1 - t * .4) : 0;
+      edge.push([t, width(t) + tooth]);
+    }
+    // mép trái từ gốc lên chóp, rồi mép phải từ chóp xuống gốc
+    for (const [t, wv] of edge) pts.push(P(ang, rs + t * (L - rs), -wv));
+    tips.push([ang, L]);
+    for (let i = edge.length - 2; i >= 0; i--) { const [t, wv] = edge[i]; pts.push(P(ang, rs + t * (L - rs), wv)); }
+  }
+  const d = 'M' + pts.map(p => f(p[0]) + ',' + f(p[1])).join('L') + 'Z';
+  const defs = E(s, 'defs');
+  const cp = E(defs, 'clipPath', { id: id + 'c' }); E(cp, 'path', { d });
+  const g = E(defs, 'radialGradient', { id, cx: f(x), cy: f(y), r: f(r), gradientUnits: 'userSpaceOnUse' });
+  E(g, 'stop', { offset: 0, 'stop-color': light }); E(g, 'stop', { offset: .45, 'stop-color': col }); E(g, 'stop', { offset: 1, 'stop-color': dark });
+  // cuống: cong nhẹ, gốc to dần
+  const sx = x + (rr() - .5) * r * .12, ey = y + r * .553;
+  E(s, 'path', { d: `M${f(x)},${f(y + r * .05)} Q${f(sx + r * .06)},${f(y + r * .3)} ${f(x)},${f(ey)}`, fill: 'none', stroke: ink, 'stroke-width': f(r * .07), 'stroke-linecap': 'round', opacity: .9 });
+  E(s, 'path', { d, fill: `url(#${id})`, opacity: .95 });
+  const Lg = G(s, { 'clip-path': `url(#${id}c)` });
+  // loang màu nước
+  const wash = G(Lg, { filter: 'url(#blurS)' });
+  for (let i = 0; i < 7; i++) { const [ang, L] = tips[Math.floor(rr() * tips.length)], q = P(ang, L * (.3 + rr() * .6), (rr() - .5) * r * .2); E(wash, 'circle', { cx: f(q[0]), cy: f(q[1]), r: f(r * (.08 + rr() * .12)), fill: rr() < .5 ? dark : light, opacity: .25 + rr() * .2 }); }
+  E(Lg, 'rect', { x: f(x - r * 1.2), y: f(y - r * 1.2), width: f(r * 2.4), height: f(r * 2.4), filter: 'url(#paperTex)', opacity: .35 });
+  // mép đọng màu
+  E(Lg, 'path', { d, fill: 'none', stroke: dark, 'stroke-width': f(r * .12), opacity: .45, filter: 'url(#blurS)' });
+  // gân chính + gân phụ
+  const vg = G(Lg, { stroke: ink, fill: 'none', 'stroke-linecap': 'round' });
+  for (const [ang, L] of tips) {
+    const m = P(ang, L * .5, (rr() - .5) * r * .03), e = P(ang, L * .93, 0);
+    E(vg, 'path', { d: `M${f(x)},${f(y)}Q${f(m[0])},${f(m[1])} ${f(e[0])},${f(e[1])}`, 'stroke-width': f(r * .025), opacity: .45 });
+    for (let k = 1; k <= 4; k++) for (const sd of [-1, 1]) {
+      const t = .15 + k * .15, a0 = P(ang, rs + t * (L - rs), 0), a1 = P(ang, rs + (t + .1) * (L - rs), sd * r * .1 * (1 - t * .7));
+      E(vg, 'path', { d: `M${f(a0[0])},${f(a0[1])}L${f(a1[0])},${f(a1[1])}`, 'stroke-width': f(r * .012), opacity: .3 });
+    }
+  }
+  E(Lg, 'circle', { cx: f(x), cy: f(y), r: f(r * .06), fill: ink, opacity: .5 });
+  // viền mực mảnh đứt quãng
+  const dash = Array.from({ length: 6 }, () => f(r * (.6 + rr() * 2)) + ' ' + f(r * (.05 + rr() * .25))).join(' ');
+  E(s, 'path', { d, fill: 'none', stroke: ink, 'stroke-width': f(r * .028), opacity: .75, 'stroke-dasharray': dash, 'stroke-linejoin': 'round' });
+}
+
+// Ếch nhìn từ trên (đầu hướng lên): thân bầu, đầu tròn, hai mắt lồi có đồng tử, chân sau gập chữ Z hai bên,
+// chân trước chống phía trước; lưng xanh rêu có đốm sẫm và hai sọc lưng sáng, viền mực mảnh.
+function frogArt(s, seed, col) {
+  const { E, G, R, f } = Ink, rr = R(seed), dark = '#24301a', g = G(s, { transform: 'translate(20,21)' });
+  // chân vẽ bằng nét: viền sẫm dày bên dưới, màu thân mảnh hơn đè lên
+  const limb = (pts, w) => { const d = 'M' + pts.map(q => f(q[0]) + ',' + f(q[1])).join('L'); E(g, 'path', { d, fill: 'none', stroke: dark, 'stroke-width': w + 1.2, 'stroke-linecap': 'round', 'stroke-linejoin': 'round' }); E(g, 'path', { d, fill: 'none', stroke: col, 'stroke-width': w, 'stroke-linecap': 'round', 'stroke-linejoin': 'round' }); };
+  for (const sd of [-1, 1]) {
+    // chân sau ngồi gập: hông -> gối chĩa ra trước-ngoài -> cổ chân lùi về sau -> bàn chân xoè ra sau
+    limb([[sd * 4.5, 5], [sd * 10.5, 1], [sd * 9.5, 10.5]], 2.6);
+    limb([[sd * 9.5, 10.5], [sd * 12.5, 14]], 1.3);
+    for (const a of [-.45, 0, .45]) limb([[sd * 12.5, 14], [sd * 12.5 + sd * Math.sin(.7 + a) * 3.2, 14 + Math.cos(.7 + a) * 3.2]], .5);
+    // chân trước: vai -> khuỷu -> bàn tay chống phía trước
+    limb([[sd * 5, -3], [sd * 8.5, -2.5], [sd * 8, -7.5]], 1.6);
+    for (const a of [-.4, .1, .6]) limb([[sd * 8, -7.5], [sd * 8 + sd * Math.sin(a) * 2.2, -7.5 - Math.cos(a) * 2.2]], .45);
+  }
+  E(g, 'ellipse', { cx: 1, cy: 2, rx: 7.5, ry: 9.5, fill: '#000', opacity: .2, filter: 'url(#blurS)' });
+  E(g, 'path', { d: 'M0,-10 C5,-10 7,-6 7,-1 C7.5,5 5,9.5 0,10 C-5,9.5 -7.5,5 -7,-1 C-7,-6 -5,-10 0,-10Z', fill: col, stroke: dark, 'stroke-width': .7, filter: 'url(#brushF)' });
+  for (const sd of [-1, 1]) E(g, 'path', { d: `M${sd * 3},-4 Q${sd * 3.6},2 ${sd * 2.4},8`, fill: 'none', stroke: '#c9d38e', 'stroke-width': .9, opacity: .55 });
+  for (let i = 0; i < 6; i++) E(g, 'ellipse', { cx: f((rr() - .5) * 9), cy: f(-2 + rr() * 9), rx: f(.7 + rr() * 1), ry: f(.6 + rr() * .8), fill: dark, opacity: .55 });
+  for (const sd of [-1, 1]) {
+    E(g, 'circle', { cx: sd * 3.6, cy: -7.2, r: 2.3, fill: col, stroke: dark, 'stroke-width': .6 });
+    E(g, 'circle', { cx: sd * 3.9, cy: -7.4, r: 1.3, fill: '#1a1a12' });
+    E(g, 'circle', { cx: sd * 3.4, cy: -7.9, r: .45, fill: '#fff', opacity: .9 });
+  }
+}
+
+function spriteSVG(w, h, draw, scale = 2) { const s = newSVG(w, h, scale); draw(s); return s; }
 async function spriteSet(key) {
   const out = {};
   if (SEASONS[key].lotus) {
@@ -673,9 +731,10 @@ async function spriteSet(key) {
     out.lotus = await Promise.all([0, 1, 2, 3].map(i => raster(spriteSVG(100, 100, s => lotusLeafArt(s, 50, 50, 44, i * 95 + 20, key === 'autumn', 900 + i)))));
   }
   if (SEASONS[key].flowers) {
-    out.flower = await Promise.all([0, 1].map(i => raster(spriteSVG(130, 130, s => { lotusLeafArt(s, i ? 72 : 58, 66, 46, 40 + i * 140, false, 950 + i); lotusFlowerArt(s, i ? 46 : 84, i ? 48 : 52, 28, 960 + i); }))));   // hoa vươn lên cạnh lá, không nằm giữa lá
+    out.flower = await Promise.all([0, 1].map(i => raster(spriteSVG(130, 130, s => { lotusLeafArt(s, 65, 65, 46, 40 + i * 140, false, 950 + i); lotusFlowerArt(s, 65, 64, 28, 960 + i); }))));   // hoa vươn lên giữa lá
     out.bud = [await raster(spriteSVG(60, 60, s => lotusBudArt(s, 30, 30)))];
   }
+  if (key !== 'winter') out.frog = await Promise.all(['#6b8a3e', '#7d8f4a', '#5a6e36'].map((c, i) => raster(spriteSVG(40, 40, s => frogArt(s, 300 + i, c), 4))));
   if (key === 'spring') out.fall = await Promise.all([0, 1].map(i => raster(spriteSVG(20, 20, s => Ink.petal(s, 10, 10, 2.2, i * 40, i ? '#f6c9d4' : '#f2b8c6')))));
   if (key === 'spring') out.bloom = await Promise.all(['#f7d6de', '#fbe9ee'].map(c => raster(spriteSVG(30, 36, s => {
     Ink.E(s, 'path', { d: 'M15,34 C14,30 16,25 15,20', fill: 'none', stroke: '#5a3a2a', 'stroke-width': 1, 'stroke-linecap': 'round' });
@@ -683,7 +742,7 @@ async function spriteSet(key) {
   }))));
   if (key === 'autumn') {
     const cols = ['#a8321e', '#c4512b', '#d9823a', '#8c2a1a', '#b8402a', '#e09a40'];
-    out.leaf = await Promise.all(cols.map(c => raster(spriteSVG(40, 40, s => Ink.maple(s, 20, 20, 15, 0, c)))));
+    out.leaf = await Promise.all(cols.map((c, i) => raster(spriteSVG(40, 40, s => mapleArt(s, 20, 20, 15, c, 700 + i), 4))));
     out.fall = out.leaf;
   }
   if (key === 'winter') {
@@ -777,10 +836,6 @@ const SWIM_PARS = /* glsl */ `
   }
   float waveZ(float s) { return uAmp * (0.03 + 0.12 * s + 0.85 * s * s) * sin(uPhase - s * uWave); }
   varying vec3 vKoiPos;
-  float finMaskV(vec3 p) {
-    return max(max(smoothstep(-2.3, -2.6, p.x), smoothstep(.82, 1.05, p.y) * smoothstep(.16, .08, abs(p.z)) * smoothstep(-1.0, -.55, p.x) * smoothstep(1.5, 1.0, p.x)),
-               max(smoothstep(.7, .85, abs(p.z)) * step(p.y, -.3), smoothstep(-.8, -.95, p.y)));
-  }
   float swimS(float x) { return clamp((2.87 - x) / 6.39, 0.0, 1.0); }
   float swimZ(float x) { return waveZ(swimS(x)); }
   float swimSlope(float x) { return (swimZ(x - 0.04) - swimZ(x + 0.04)) / -0.08; }
@@ -929,8 +984,6 @@ function swimInject(m, U, key, extra = '') {
       sh.defines = { ...(sh.defines || {}), KOI_VARIANT: m.userData.variant };
       sh.fragmentShader = PATTERN_PARS + sh.fragmentShader.replace('#include <map_fragment>', '#include <map_fragment>\n' + PATTERN_GLSL);
     }
-    // viền mực: không vẽ ở vùng đuôi -- nếu không, viền đen lộ qua phiến đuôi trong mờ khi đuôi xoắn lúc cua
-    if (m.userData.noTailOutline) sh.fragmentShader = 'varying vec3 vKoiPos;\n' + sh.fragmentShader.replace('void main() {', 'void main() {\n  if (vKoiPos.x < -2.25) discard;');
   };
   m.customProgramCacheKey = () => key;
   return m;
@@ -1026,9 +1079,7 @@ class Koi {
     this.mesh = new THREE.Mesh(koiGeo, swimInject(toon, this.U, `koi-${this.variant}`)); this.mesh.renderOrder = 1;
     this.mesh.castShadow = true;
     this.mesh.customDepthMaterial = swimInject(new THREE.MeshDepthMaterial({ depthPacking: THREE.RGBADepthPacking }), this.U, 'koi-depth');
-    const olMat = new THREE.MeshBasicMaterial({ color: '#121212', side: THREE.BackSide }); olMat.userData.noTailOutline = true;
-    const outline = new THREE.Mesh(koiGeo, swimInject(olMat, this.U, 'koi-outline', '\n// vùng gốc vây ngực: viền thụt vào trong thân, nếu đẩy ra sẽ thành mẩu nhọn sẫm ở mang\nfloat pr = max(step(.2, position.x) * step(position.x, 1.7) * step(position.y, -.15) * smoothstep(.45, .55, abs(position.z)), step(-2.5, position.x) * step(position.x, .5) * step(position.y, -.3) * smoothstep(.22, .3, abs(position.z)));\nfloat fo = max(finMaskV(position), pr); transformed += normalize(normal) * (.085 * (1.0 - fo) - .04 * fo);'));
-    body.add(this.mesh, outline);
+    body.add(this.mesh);   // không viền mực: thân liền mạch với vây/đuôi trong mờ
     this.pecs = [];
     const pecMat = new THREE.MeshToonMaterial({ map: pecTexture(this.variant, Math.floor(rnd(1, 9999))), gradientMap, transparent: true, depthWrite: false, side: THREE.DoubleSide, alphaTest: .04 });
     for (const sd of [1, -1]) {
@@ -1079,7 +1130,7 @@ class Koi {
       this.goalT = (this.goalT ?? 0) - dt;
       const gBack = this.goal && Math.abs(angDiff(Math.atan2(this.goal[1] - dy, this.goal[0] - dx), this.heading)) > 1.9;
       // tới gần đích, hoặc đích đã lọt ra sau lưng (đi lướt qua) -> chọn đích mới, không quay lại quần quanh đích cũ
-      if (this.goalT < 0 || (this.goal && Math.hypot(this.goal[0] - dx, this.goal[1] - dy) < 90) || (gBack && e < .55)) {
+      if (!this.goal || this.goalT < 0 || Math.hypot(this.goal[0] - dx, this.goal[1] - dy) < 90 || (gBack && e < .55)) {   // chưa có đích (frame đầu dt = 0) cũng chọn ngay
         let best = null, bs = -1e9;
         // chấm điểm đích: ít phải rẽ, xa (bơi cắt ngang hồ thay vì men bờ), và rẽ NGƯỢC chiều đã rẽ nhiều gần đây
         // -> không bị cuốn vào vòng một chiều dọc bờ
@@ -1314,6 +1365,295 @@ function fit() {
 fit(); new ResizeObserver(fit).observe(canvas);
 
 // ---------- Lớp tranh + vật trôi/rơi ----------
+// ---------- Cỏ ven bờ (chuyển động) ----------
+// Mỗi khóm cỏ là một tấm sprite riêng, uốn trong vertex shader: cúi theo hướng gió, mức cúi theo cơn giật
+// đi tới khóm đó (uGustL), thêm rung lá nhỏ.
+const plantVert = /* glsl */ `
+  uniform float uTime, uGustL, uSeed, uAmp; uniform vec2 uWind; varying vec2 vUv;
+  void main() {
+    vUv = uv; vec3 p = position; float h = uv.y;
+    float fl = sin(uTime * (2.0 + uSeed * .4) + uSeed * 6.0) * .6 + sin(uTime * 3.9 + uSeed * 2.0) * .4;
+    float b = uGustL * .85 + .08 + fl * (.05 + .2 * uGustL);
+    vec2 d = vec2(uWind.x, -uWind.y) * b * h * h * uAmp;
+    p.xy += d; p.y -= length(d) * .35 * h;                 // cúi xuống thì ngọn thấp lại
+    gl_Position = projectionMatrix * modelViewMatrix * vec4(p, 1.0);
+  }`;
+function plantMat(tex, seed, amp) {
+  return new THREE.ShaderMaterial({
+    transparent: true, depthWrite: false, depthTest: false,
+    // uGust/uWind/uTime/uOpacity do vòng lặp lớp tranh gán chung; uGustL gán riêng từng khóm
+    uniforms: { map: { value: tex }, uOpacity: { value: 0 }, uTime: { value: 0 }, uGust: { value: 0 }, uGustL: { value: 0 }, uWind: { value: new THREE.Vector2(-1, 0) }, uSeed: { value: seed }, uAmp: { value: amp } },
+    vertexShader: plantVert,
+    fragmentShader: /* glsl */ `
+      uniform sampler2D map; uniform float uOpacity; varying vec2 vUv;
+      void main() {
+        vec4 c = texture(map, vUv);
+        gl_FragColor = vec4(c.rgb, c.a * uOpacity);
+        #include <colorspace_fragment>
+      }`,
+  });
+}
+// tấm phẳng nằm ngang, gốc cây ở (bx, by) toạ độ thiết kế; gốc nằm ở (cx, by0) trên ảnh w x h đơn vị thiết kế
+function plantMesh(mat, w, h, by0, bx, by, y, rot = 0, scale = 1) {
+  const k = viewAt(y).w / DW * scale, m = new THREE.Mesh(new THREE.PlaneGeometry(w * k, h * k, 1, 10), mat);
+  const ly = (by0 - h / 2) * k, [rx, rz] = d2w(bx, by, y);   // tâm ảnh cách gốc ly theo trục +y cục bộ
+  m.rotation.set(-Math.PI / 2, 0, rot);
+  m.position.set(rx - ly * Math.sin(rot), y, rz - ly * Math.cos(rot));
+  return m;
+}
+async function buildPlants(S, key) {
+  const { R, E } = Ink, out = { grass: [] };
+  // cỏ ven bờ: đúng vị trí các khóm trước đây vẽ cứng trong shoreArt (cùng chuỗi số ngẫu nhiên)
+  const r = R(23), gc = key === 'winter' ? '#6a6050' : S.grass, tufts = [];
+  for (let i = 0; i < 22; i++) {
+    const th = r() * TAU, [x, y] = pondPt(th, 1.12 + r() * .1), n = 4 + Math.round(r() * 4), h = 24 + r() * 16;
+    if ((x > 600 && y < 150) || (x < 140 && y < 260)) continue;
+    tufts.push({ x, y, draw: s => Ink.grass(s, 50, 96, n, 900 + i, gc, h), amp: h / 40 });
+  }
+  if (key === 'summer' || key === 'spring') {
+    // khóm diên vĩ (iris) ở góc dưới phải, hoa đi cùng lá
+    const fl = [[6, -50], [6, -52], [8, -32]];
+    for (let i = 0; i < 3; i++) tufts.push({ x: 840 + i * 26, y: 520 - i * 6, amp: 1.2, draw: s => {
+      Ink.grass(s, 50, 96, 7, 950 + i, '#2f4a24', 56);
+      if (key === 'summer') { const [dx, dy] = fl[i], x = 50 + dx, y = 96 + dy; E(s, 'path', { d: `M${x},${y} q-6,-8 0,-14 q6,6 0,14 q8,-4 12,4 q-8,4 -12,-4 q-8,-4 -12,4 q8,4 12,-4Z`, fill: '#5b4b8a', opacity: .9, filter: 'url(#brushF)' }); }
+    } });
+  }
+  const gTex = await Promise.all(tufts.map(q => raster(spriteSVG(100, 100, q.draw))));
+  tufts.forEach((q, i) => {
+    const m = plantMesh(plantMat(canvasTex(gTex[i]), rnd(0, 9), 0), 100, 100, 96, q.x, q.y, SHORE_Y + .05);
+    m.material.uniforms.uAmp.value = m.geometry.parameters.height * .32 * q.amp;
+    m.renderOrder = 21; out.grass.push({ m, dx: q.x, dy: q.y });
+  });
+  return out;
+}
+
+// Gió ngẫu nhiên: gió nền đổi chậm (lúc lặng, lúc đều) + từng cơn giật đến bất chợt: lên dần, giữ, tắt dần;
+// mỗi cơn lệch hướng một chút. Lưu lịch sử vài giây để cơn gió lan dần qua cảnh (cỏ phía đầu gió lay trước).
+const WIND = { base: .25, baseT: .25, nextT: 2, gusts: [], dirOff: 0, hist: [] };
+function updateWind(dt, t) {
+  const W = WIND;
+  W.nextT -= dt;
+  if (W.nextT < 0) {
+    W.gusts.push({ t: 0, rise: rnd(.6, 1.6), hold: rnd(.4, 2.5), fall: rnd(1.5, 4), s: rnd(.3, .8) * (Math.random() < .2 ? 1.35 : 1), off: rnd(-.35, .35) });
+    W.nextT = rnd(3, 12) * (Math.random() < .25 ? 2 : 1);
+  }
+  if (Math.random() < dt * .05) W.baseT = rnd(.06, .38);
+  W.base = lerp(W.base, W.baseT, 1 - Math.exp(-dt * .3));
+  let g = W.base, off = 0, sum = 0;
+  for (let i = W.gusts.length - 1; i >= 0; i--) {
+    const q = W.gusts[i]; q.t += dt;
+    const e = q.t < q.rise ? smooth01(q.t / q.rise) : q.t < q.rise + q.hold ? 1 : 1 - smooth01(Math.min(1, (q.t - q.rise - q.hold) / q.fall));
+    g += q.s * e; off += q.off * e; sum += e;
+    if (q.t > q.rise + q.hold + q.fall) W.gusts.splice(i, 1);
+  }
+  g *= 1 + (Math.sin(t * 1.7) + Math.sin(t * 2.9 + 1)) * .04;
+  W.dirOff = lerp(W.dirOff, sum > 0 ? off / Math.max(1, sum) : 0, 1 - Math.exp(-dt));
+  g = clamp(g, 0, 1.05);
+  W.hist.push([t, g]); while (W.hist.length > 2 && W.hist[0][0] < t - 4) W.hist.shift();
+  return g;
+}
+const gustAt = tq => { const H = WIND.hist; for (let i = H.length - 1; i >= 0; i--) if (H[i][0] <= tq) return H[i][1]; return H.length ? H[0][1] : 0; };
+function updatePlants(dt, t, wind) {
+  for (const L of layers) {
+    if (L.grass) for (const q of L.grass) q.m.material.uniforms.uGustL.value = gustAt(t - ((q.dx - 480) * wind.x + (q.dy - 280) * wind.y + 560) / 380);
+  }
+}
+
+// ---------- Ngày / đêm ----------
+// Đêm: phủ lớp nhân màu chàm lên toàn cảnh (chuyển dần ~3 s), chừa quầng sáng của đèn đá và ánh trăng loang trên nước;
+// trên lớp tối vẽ cộng sáng: ngọn đèn, bóng trăng, đom đóm. Ếch ra ngồi trên lá sen, phồng túi kêu làm gợn nước,
+// thỉnh thoảng nhảy tõm xuống hồ. Đông: đèn đá bị tuyết phủ, sáng yếu và chập chờn; không đom đóm, không ếch.
+const NIGHT = { on: false, k: 0, lampI: 1, ff: [], frogs: [], frogT: 0 };
+const NIGHT_SET = {
+  spring: { tint: '#3e4870', ff: 8, frogs: 2, lamp: 1, moon: '#dfe6ff' },
+  summer: { tint: '#34426a', ff: 26, frogs: 4, lamp: 1, moon: '#dfe6ff' },
+  autumn: { tint: '#40405e', ff: 3, frogs: 1, lamp: 1, moon: '#f3e2c0' },
+  winter: { tint: '#56607e', ff: 0, frogs: 0, lamp: .38, moon: '#e8eeff' },
+};
+const LANTERN_D = [70, 430], MOON_D = [650, 320];
+const glowTex = (() => {
+  const c = document.createElement('canvas'); c.width = c.height = 64;
+  const x = c.getContext('2d'), g = x.createRadialGradient(32, 32, 0, 32, 32, 32);
+  g.addColorStop(0, 'rgba(255,255,255,1)'); g.addColorStop(.25, 'rgba(255,255,255,.55)'); g.addColorStop(1, 'rgba(255,255,255,0)');
+  x.fillStyle = g; x.fillRect(0, 0, 64, 64); return new THREE.CanvasTexture(c);
+})();
+const glowScene = new THREE.Scene(), nightScene = new THREE.Scene();
+function glow(size, col, y, additive = true) {
+  const m = new THREE.Mesh(new THREE.PlaneGeometry(size, size), new THREE.MeshBasicMaterial({ map: glowTex, color: col, transparent: true, opacity: 0, blending: additive ? THREE.AdditiveBlending : THREE.NormalBlending, depthTest: false, depthWrite: false, toneMapped: false }));
+  m.rotation.x = -Math.PI / 2; m.position.y = y; return m;
+}
+// lớp tối: nhân màu (dst * src), giá trị là màu hiển thị nên không đổi không gian màu
+const nightQ = new THREE.Mesh(quadGeo, new THREE.ShaderMaterial({
+  vertexShader: QV, depthTest: false, depthWrite: false, transparent: true,
+  blending: THREE.CustomBlending, blendEquation: THREE.AddEquation, blendSrc: THREE.DstColorFactor, blendDst: THREE.ZeroFactor,
+  uniforms: { uK: { value: 0 }, uAspect: { value: ASPECT }, uTint: { value: new THREE.Vector3(1, 1, 1) }, uLamp: { value: 0 }, uMoon: { value: 1 }, uLampP: { value: new THREE.Vector2(...d2uv(...LANTERN_D)) }, uMoonP: { value: new THREE.Vector2(...d2uv(...MOON_D)) } },
+  fragmentShader: /* glsl */ `
+    uniform float uK, uAspect, uLamp, uMoon; uniform vec3 uTint; uniform vec2 uLampP, uMoonP; varying vec2 vUv;
+    void main() {
+      vec2 a = vec2(uAspect, 1.0);
+      float dl = length((vUv - uLampP) * a), dm = length((vUv - uMoonP) * a);
+      float vig = smoothstep(1.0, .35, length((vUv - .5) * a * .85));
+      vec3 c = uTint * mix(.72, 1.0, vig);
+      c += vec3(1.0, .78, .48) * uLamp * exp(-dl * dl / .01) * .9;      // quầng đèn đá ấm
+      c += vec3(.75, .82, 1.0) * uMoon * exp(-dm * dm / .03) * .18;     // ánh trăng loang nhẹ quanh bóng trăng
+      gl_FragColor = vec4(mix(vec3(1.0), min(c, vec3(1.0)), uK), 1.0);
+    }`,
+}));
+nightQ.frustumCulled = false; nightScene.add(nightQ);
+const lampFlame = glow(1.4, '#ffd590', SHORE_Y + .4), lampHalo = glow(7, '#ffb050', SHORE_Y + .3);
+{ const [lx, lz] = d2w(...LANTERN_D, SHORE_Y + .4); lampFlame.position.x = lampHalo.position.x = lx; lampFlame.position.z = lampHalo.position.z = lz; }
+glowScene.add(lampHalo, lampFlame);
+// Bóng trăng: đĩa trăng tròn sắc nét trên mặt nước, có vệt biển tối mờ và quầng nhẹ; vẽ cộng sáng sau lớp tối.
+// Pháp tuyến sóng + vết khuấy + vân gió làm bóng trăng lay vỡ; vật nổi (lá sen, hoa, bờ) che bóng qua mặt nạ occRT.
+const occRT = new THREE.WebGLRenderTarget(4, 4);
+const moonP = pass(/* glsl */ `
+  uniform sampler2D uWave, uStir, uOcc; uniform vec2 uWaveTexel, uMoonP, uWind; uniform float uK, uAspect, uR, uTime, uGust; uniform vec3 uCol; varying vec2 vUv;
+  float hash(vec2 p) { return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453); }
+  float noise(vec2 p) { vec2 i = floor(p), f = fract(p); f = f * f * (3.0 - 2.0 * f); return mix(mix(hash(i), hash(i + vec2(1, 0)), f.x), mix(hash(i + vec2(0, 1)), hash(i + vec2(1, 1)), f.x), f.y); }
+  float H(vec2 uv) { return texture(uWave, uv).r; }
+  void main() {
+    vec2 disp = texture(uStir, vUv).xy;
+    float hL = H(vUv - vec2(uWaveTexel.x, 0.0)), hR = H(vUv + vec2(uWaveTexel.x, 0.0)), hD = H(vUv - vec2(0.0, uWaveTexel.y)), hU = H(vUv + vec2(0.0, uWaveTexel.y));
+    vec2 n = vec2(hL - hR, hD - hU) * 9.0;
+    vec2 wd = normalize(uWind + 1e-4), p = vUv * vec2(uAspect, 1.0), q = vec2(dot(p, wd), dot(p, vec2(-wd.y, wd.x)));
+    float wn = noise(vec2(q.x * 60.0 - uTime * 2.5, q.y * 14.0)) - .5;
+    // phản chiếu nhạy với độ nghiêng mặt nước hơn khúc xạ
+    vec2 uv = vUv - disp * 1.4 - n * .045 + wd * wn * (.002 + .004 * uGust);
+    vec2 d = (uv - uMoonP) * vec2(uAspect, 1.0);
+    float r = length(d), px = .0016;
+    float disc = 1.0 - smoothstep(uR - px, uR + px, r);
+    float mare = smoothstep(.45, .75, noise(d / uR * 2.0 + 4.0)) * .3 + smoothstep(.55, .85, noise(d / uR * 4.5 + 9.0)) * .14;   // biển tối trên mặt trăng
+    float halo = exp(-max(r - uR, 0.0) * 30.0) * .28 + exp(-r * r / .03) * .08;
+    float occ = texture(uOcc, vUv).a;
+    float limb = 1.0 - .22 * (r / uR) * (r / uR);                                          // mép trăng tối hơn tâm
+    vec3 c = uCol * (disc * (.85 - mare) * limb + halo) * (1.0 - occ) * uK;
+    gl_FragColor = vec4(c, 1.0);
+  }`, { uWave: { value: null }, uStir: { value: null }, uOcc: { value: occRT.texture }, uWaveTexel: { value: new THREE.Vector2(1 / WAVE_W, 1 / WAVE_H) }, uMoonP: { value: new THREE.Vector2(...d2uv(...MOON_D)) }, uWind: { value: new THREE.Vector2(-1, 0) }, uK: { value: 0 }, uAspect: { value: ASPECT }, uR: { value: .042 }, uTime: { value: 0 }, uGust: { value: 0 }, uCol: { value: new THREE.Color() } });
+moonP.m.blending = THREE.AdditiveBlending; moonP.m.transparent = true;
+const _sz = new THREE.Vector2();
+// vẽ phần đêm sau các lớp ngày: mặt nạ vật nổi -> lớp tối -> bóng trăng -> đèn, đom đóm
+function renderNight(t, gust, wind) {
+  renderer.getDrawingBufferSize(_sz);
+  const w = Math.max(1, _sz.x >> 1), h = Math.max(1, _sz.y >> 1);
+  if (occRT.width !== w || occRT.height !== h) occRT.setSize(w, h);
+  renderer.setRenderTarget(occRT); renderer.setClearColor(0, 0); renderer.clear(); renderer.render(overScene, camera);
+  renderer.setRenderTarget(null);
+  renderer.render(nightScene, qCam);
+  const U = moonP.u;
+  U.uWave.value = waveBuf.read.texture; U.uStir.value = stirBuf.read.texture; U.uK.value = nightQ.material.uniforms.uK.value;
+  U.uTime.value = t; U.uGust.value = gust; U.uWind.value.set(wind.x, -wind.y); U.uCol.value.set(NIGHT_SET[season].moon).convertLinearToSRGB();
+  renderer.render(moonP.s, qCam);
+  renderer.render(glowScene, camera);
+}
+
+// Đom đóm: bay lượn chậm quanh bờ và mép hồ, nhấp nháy: tắt vài giây rồi sáng lên-tắt dần trong chưa tới 1 s
+class Firefly {
+  constructor() {
+    const [dx, dy] = pondPt(rnd(0, TAU), rnd(.75, 1.25));
+    this.y = rnd(.8, 4); [this.x, this.z] = d2w(dx, dy, this.y);
+    this.a = rnd(0, TAU); this.sp = rnd(.4, 1.1); this.off = rnd(1, 3.5); this.len = rnd(.5, .9); this.blink = -rnd(0, 3);
+    this.m = glow(rnd(1.2, 1.6), '#d6ff70', this.y); this.h = glow(rnd(3.2, 4), '#9fd84a', this.y);
+    glowScene.add(this.h, this.m); this.fade = 0; this.dying = false;
+  }
+  update(dt, t, k) {
+    this.a += (Math.sin(t * .7 + this.len * 9) * 1.4 + (Math.random() - .5) * 2) * dt;
+    const [dx, dy] = w2d(this.x, this.z, this.y), e = pondE(dx, dy);
+    if (e > 1.35 || e < .55) { const [cx, cz] = d2w(POND.cx, POND.cy, this.y), out = e > 1.35 ? 1 : -1; this.a += angDiff(Math.atan2(out * (cz - this.z), out * (cx - this.x)), this.a) * dt * 1.5; }
+    this.x += Math.cos(this.a) * this.sp * dt; this.z += Math.sin(this.a) * this.sp * dt;
+    this.y = clamp(this.y + Math.sin(t * 1.3 + this.len * 7) * .15 * dt, .5, 4.5);
+    this.blink += dt; let I = 0;
+    if (this.blink > 0) { const u = this.blink / this.len; I = Math.sin(Math.PI * Math.min(1, u)) ** 2; if (u >= 1) this.blink = -this.off * rnd(.6, 1.4); }
+    this.fade = clamp(this.fade + (this.dying ? -dt : dt) / 1.5, 0, 1);
+    const o = I * this.fade * k;
+    this.m.position.set(this.x, this.y, this.z); this.h.position.set(this.x, this.y, this.z);
+    this.m.material.opacity = o; this.h.material.opacity = o * .35;
+  }
+  dispose() { for (const m of [this.m, this.h]) { glowScene.remove(m); m.geometry.dispose(); m.material.dispose(); } }
+}
+
+// Ếch: ngồi trên lá sen (trôi theo lá), kêu thành tràng 2-4 tiếng: túi kêu phồng xẹp, mỗi tiếng làm gợn mặt nước;
+// thỉnh thoảng nhảy tõm xuống nước rồi lặn mất, sau đó con khác leo lên lá khác.
+class Frog {
+  constructor(host) {
+    this.host = host; this.ang = rnd(0, TAU); this.r = host.rad * rnd(.15, .45); this.rot = rnd(0, TAU);
+    this.m = spriteMesh(sprites.frog[Math.floor(Math.random() * sprites.frog.length)], 1.5); this.m.renderOrder = 13; overScene.add(this.m);
+    this.sac = glow(.55, '#efe9cc', FLOAT_Y + .06, false); this.sac.renderOrder = 14; overScene.add(this.sac);
+    this.state = 'sit'; this.a = 0; this.croakT = rnd(1, 5); this.croak = -1; this.jumpT = rnd(18, 45); this.dying = false;
+  }
+  face() { const r = this.m.rotation.z; return [-Math.sin(r), -Math.cos(r)]; }   // đầu ếch = mép trên ảnh
+  update(dt, t, k) {
+    const d = this.host;
+    if (this.state === 'sit') {
+      const hr = d.m.rotation.z + this.ang;
+      this.x = d.x + Math.cos(hr) * this.r; this.z = d.z + Math.sin(hr) * this.r; this.y = FLOAT_Y + .05;
+      this.m.rotation.z = d.m.rotation.z + this.rot;
+      if (d.dying || d.state !== 'float') this.jumpT = 0;
+      this.croakT -= dt;
+      if (this.croakT < 0 && this.croak < 0) { this.croak = 0; this.n = 2 + Math.floor(Math.random() * 3); this.lastI = -1; }
+      if (this.croak >= 0) {
+        this.croak += dt; const i = Math.floor(this.croak / .32), u = (this.croak % .32) / .32;
+        if (i !== this.lastI && i < this.n) { this.lastI = i; const [uu, vv] = w2uv(this.x, SURF_Y, this.z); splash(uu, vv, .005, .07); }   // mỗi tiếng kêu một vòng gợn
+        this.sacS = i < this.n ? Math.sin(Math.PI * u) : 0;
+        if (i >= this.n) { this.croak = -1; this.croakT = rnd(2, 7); this.sacS = 0; }
+      } else this.sacS = 0;
+      this.jumpT -= dt;
+      if (this.jumpT < 0 || this.dying) {
+        const [fx, fz] = this.face(), L = rnd(3, 5);
+        this.state = 'jump'; this.u = 0; this.from = [this.x, this.z]; this.to = [this.x + fx * L, this.z + fz * L]; this.sacS = 0;
+      }
+    } else if (this.state === 'jump') {
+      this.u += dt / .55; const u = Math.min(1, this.u);
+      this.x = lerp(this.from[0], this.to[0], u); this.z = lerp(this.from[1], this.to[1], u); this.y = FLOAT_Y + .05 + Math.sin(Math.PI * u) * 1.4;
+      this.m.scale.setScalar(1 + Math.sin(Math.PI * u) * .25);
+      if (u >= 1) { const [uu, vv] = w2uv(this.x, SURF_Y, this.z); splash(uu, vv, .008, .4); this.state = 'gone'; this.m.scale.setScalar(1); }
+    } else this.a -= dt / .5;
+    if (this.state !== 'gone') this.a = Math.min(1, this.a + dt / 1.2);
+    const o = clamp(this.a, 0, 1) * k;
+    this.m.material.opacity = o; this.m.position.set(this.x, this.y, this.z);
+    const [fx, fz] = this.face();
+    this.sac.position.set(this.x + fx * .42, this.y + .02, this.z + fz * .42);
+    this.sac.scale.setScalar(.3 + this.sacS * .9); this.sac.material.opacity = o * this.sacS * .9;
+  }
+  get done() { return this.state === 'gone' && this.a <= 0; }
+  dispose() { for (const m of [this.m, this.sac]) { overScene.remove(m); m.geometry.dispose(); m.material.dispose(); } }
+}
+
+function setNight(on) {
+  NIGHT.on = on;
+  const b = document.getElementById('night'); if (b) { b.textContent = on ? '☀ Ngày' : '☾ Đêm'; b.classList.toggle('on', on); }
+  // bướm, chuồn chuồn đi ngủ; sáng ra bay lại
+  if (on) for (const b of insects) b.dying = true;
+  else if (season && !insects.some(b => !b.dying)) insects.push(...SEASON_INSECTS[season]());
+}
+function updateNight(dt, t) {
+  const N = NIGHT, set = NIGHT_SET[season];
+  N.k = clamp(N.k + (N.on ? dt : -dt) / 3, 0, 1);
+  const k = smooth01(N.k), U = nightQ.material.uniforms;
+  U.uK.value = k;
+  const tc = new THREE.Color(set.tint).convertLinearToSRGB(); U.uTint.value.lerp(new THREE.Vector3(tc.r, tc.g, tc.b), 1 - Math.exp(-dt * 2));
+  // đèn đá: lửa lay nhẹ; mùa đông bị tuyết phủ, yếu và chập chờn, có lúc gần tắt
+  const fl = season === 'winter' ? clamp(.55 + .3 * Math.sin(t * 7.3) * Math.sin(t * 3.1 + 1) - (Math.random() < .03 ? .45 : 0), .08, 1) : .9 + .06 * Math.sin(t * 9) + .04 * Math.sin(t * 23.7);
+  N.lampI = lerp(N.lampI, fl * set.lamp, season === 'winter' ? .25 : .15);
+  U.uLamp.value = N.lampI;
+  lampFlame.material.opacity = k * N.lampI; lampHalo.material.opacity = k * N.lampI * .45;
+  lampFlame.scale.setScalar(.85 + .15 * N.lampI);
+  // đom đóm
+  const want = N.on ? set.ff : 0, alive = N.ff.filter(f => !f.dying);
+  if (alive.length < want && Math.random() < dt * 4) N.ff.push(new Firefly());
+  if (alive.length > want) alive[0].dying = true;
+  for (let i = N.ff.length - 1; i >= 0; i--) { const f = N.ff[i]; f.update(dt, t, k); if (f.dying && f.fade <= 0) { f.dispose(); N.ff.splice(i, 1); } }
+  // ếch: lên lá sen còn trống khi trời tối
+  const wantF = N.on && sprites.frog ? set.frogs : 0, liveF = N.frogs.filter(f => f.state === 'sit' && !f.dying);
+  N.frogT -= dt;
+  if (liveF.length < wantF && N.frogT < 0) {
+    const hosts = drifters.filter(d => d.big && !d.ice && !d.flower && !d.dying && d.state === 'float' && !N.frogs.some(f => f.host === d && f.state === 'sit'));
+    if (hosts.length) N.frogs.push(new Frog(hosts[Math.floor(Math.random() * hosts.length)]));
+    N.frogT = rnd(1.5, 5);
+  }
+  if (liveF.length > wantF) for (const f of liveF.slice(wantF)) f.dying = true;
+  for (let i = N.frogs.length - 1; i >= 0; i--) { const f = N.frogs[i]; f.update(dt, t, k); if (f.done) { f.dispose(); N.frogs.splice(i, 1); } }
+}
+
 let layers = [], season = null, sprites = {}, busy = false, pending = null;
 const drifters = [];                                 // vật rơi + vật trôi
 const spriteMesh = (c, size) => {
@@ -1326,7 +1666,7 @@ async function setSeason(key) {
   if (key === season) return; busy = true;
   document.querySelectorAll('.toolbar [data-season]').forEach(b => b.classList.toggle('on', b.dataset.season === key));
   const S = SEASONS[key];
-  const [floorC, shoreC, treeC, sp] = await Promise.all([raster(floorArt(S)), raster(shoreArt(S, key)), raster(treeArt(S, key)), spriteSet(key)]);
+  const [floorC, shoreC, treeC, sp, plants] = await Promise.all([raster(floorArt(S)), raster(shoreArt(S, key)), raster(treeArt(S, key)), spriteSet(key), buildPlants(S, key)]);
   await document.fonts.load('34px "Yuji Syuku"').catch(() => {});
   drawCalligraphy(shoreC, S);
   const floorM = screenPlane(FLOOR_Y, new THREE.MeshLambertMaterial({ map: canvasTex(floorC), transparent: true, opacity: 0, fog: false }));
@@ -1337,8 +1677,9 @@ async function setSeason(key) {
   shadowM.position.x += 2.2; shadowM.position.z += 3.4;
   const treeM = screenPlane(TREE_Y, swayMat(treeTex, false), 48); treeM.renderOrder = 40;
   overScene.add(shoreM, shadowM, treeM);
+  for (const q of plants.grass) overScene.add(q.m);
   for (const L of layers) L.fade = -1;
-  const layer = { meshes: [floorM, shoreM, shadowM, treeM], fade: 1, a: 0 };
+  const layer = { meshes: [floorM, shoreM, shadowM, treeM, ...plants.grass.map(q => q.m)], fade: 1, a: 0, grass: plants.grass };
   layers.push(layer);
   // vật trôi theo mùa cũ: tan dần; mùa mới: rải lá sen, băng
   for (const d of drifters) d.dying = true;
@@ -1349,7 +1690,7 @@ async function setSeason(key) {
   for (let i = 0; i < S.flowers; i++) addFloat(sprites.flower[i % sprites.flower.length], rnd(6.4, 8.2), .2 + r() * .7, false, true);
   if (sprites.bud) for (let i = 0; i < 3; i++) addFloat(sprites.bud[0], rnd(1.6, 2.1), .25 + r() * .6, false, true);
   for (const b of insects) b.dying = true;
-  insects.push(...SEASON_INSECTS[key]());
+  if (!NIGHT.on) insects.push(...SEASON_INSECTS[key]());
   hemi.intensity = S.hemi; sun.color.set(S.sun); sun.intensity = S.sunI;
   waterScene.fog = new THREE.Fog(new THREE.Color(S.paper).lerp(new THREE.Color(S.water), .25), 82, 96);
   comp.u.uPaper.value.set(S.paper);
@@ -1366,7 +1707,7 @@ function addFloat(c, size, k, ice = false, flower = false) {
     if (!drifters.some(o => o.big && !o.dying && Math.hypot(o.x - x, o.z - z) < (o.rad + rad) * 1.05)) break;
   }
   const m = spriteMesh(c, size); m.position.set(x, FLOAT_Y, z); m.rotation.z = rnd(0, TAU); m.renderOrder = ice ? 11 : 12; overScene.add(m);
-  drifters.push({ m, state: 'float', x, z, y: FLOAT_Y, vx: 0, vz: 0, spin: rnd(-.05, .05), a: 0, life: Infinity, big: true, ice, flower, rad });
+  drifters.push({ m, state: 'float', x, z, hx: x, hz: z, y: FLOAT_Y, vx: 0, vz: 0, spin: rnd(-.05, .05), a: 0, life: Infinity, big: true, ice, flower, rad });
 }
 // ---------- Hoa/lá trên cây: mỗi bông là một sprite riêng, rụng thật rồi mọc lại ----------
 const SUN_SH = [24 / 62, 20 / 62];                   // bóng lệch theo hướng nắng, trên mỗi đơn vị độ cao
@@ -1786,7 +2127,8 @@ canvas.addEventListener('pointermove', (e) => {
   const { uv, w } = pickEvt(e); if (!w) return;
   ptrUV.set(uv[0], uv[1]); if (!hasPtr) prevUV.copy(ptrUV); hasPtr = true;
   const now = performance.now();
-  w.speed = lastP ? Math.hypot(w.x - lastP.x, w.z - lastP.z) / Math.max(.008, (now - lastP.t) / 1000) : 0; w.t = now;
+  const pdt = lastP ? Math.max(.008, (now - lastP.t) / 1000) : 1;
+  w.vx = lastP ? (w.x - lastP.x) / pdt : 0; w.vz = lastP ? (w.z - lastP.z) / pdt : 0; w.speed = Math.hypot(w.vx, w.vz); w.t = now;
   pointer = w; lastP = w;
 });
 canvas.addEventListener('pointerleave', () => { pointer = null; hasPtr = false; });
@@ -1798,6 +2140,7 @@ canvas.addEventListener('click', (e) => {
 document.querySelectorAll('.toolbar [data-season]').forEach(b => b.addEventListener('click', () => { auto = false; document.getElementById('auto').classList.remove('on'); setSeason(b.dataset.season); }));
 let auto = true, autoT = 0;
 document.getElementById('auto').addEventListener('click', (e) => { auto = !auto; e.currentTarget.classList.toggle('on', auto); autoT = 0; });
+document.getElementById('night').addEventListener('click', () => { auto = false; document.getElementById('auto').classList.remove('on'); setNight(!NIGHT.on); });
 
 // ---------- Vòng lặp ----------
 await setSeason('spring');
@@ -1808,11 +2151,12 @@ let windA = Math.PI * .85, spawnAcc = 0;
 renderer.setAnimationLoop((ts) => {
   timer.update(ts);
   const dt = Math.min(timer.getDelta(), 1 / 30), t = timer.getElapsed(), S = SEASONS[season];
-  if (auto && !busy) { autoT += dt; if (autoT > 28) { autoT = 0; setSeason(ORDER[(ORDER.indexOf(season) + 1) % 4]); } }
+  // tự chuyển: mỗi mùa một ngày rồi một đêm, sáng ra sang mùa sau
+  if (auto && !busy) { autoT += dt; if (!NIGHT.on && autoT > 24) { autoT = 0; setNight(true); } else if (NIGHT.on && autoT > 16) { autoT = 0; setNight(false); setSeason(ORDER[(ORDER.indexOf(season) + 1) % 4]); } }
 
   // Gió: hướng chính từ góc cây (phải trên) thổi xuống trái dưới, giật từng cơn.
-  windA = Math.PI * .85 + Math.sin(t * .05) * .35;
-  const gust = clamp(.25 + .5 * Math.max(0, Math.sin(t * .23) * Math.sin(t * .61 + 1) + .45), 0, 1);
+  const gust = updateWind(dt, t);
+  windA = Math.PI * .85 + Math.sin(t * .05) * .35 + WIND.dirOff;
   const wind = new THREE.Vector2(Math.cos(windA), Math.sin(windA));    // toạ độ thiết kế: x phải, y xuống
   // hướng gió trong world (x, z) trùng với (x, y) thiết kế
   const wx = wind.x, wz = wind.y;
@@ -1826,6 +2170,8 @@ renderer.setAnimationLoop((ts) => {
     }
     if (L.fade < 0 && L.a <= 0) { for (const m of L.meshes) { m.parent.remove(m); m.material.map?.dispose?.(); m.material.uniforms?.map.value.dispose(); m.material.dispose(); m.geometry.dispose(); } layers.splice(i, 1); }
   }
+
+  updatePlants(dt, t, wind);
 
   // Vật rơi theo gió
   if (S.fall === 'snow' && sprites.fall) { spawnAcc += dt * S.rate; while (spawnAcc > 1) { spawnAcc--; spawnSnow(); } }
@@ -1890,9 +2236,20 @@ renderer.setAnimationLoop((ts) => {
         d.y = FLOAT_Y;
       }
     } else if (d.state === 'float') {
-      const k = d.ice ? .08 : d.big ? .14 : .35;
+      // gió đẩy trôi (vật nhỏ trôi nhanh hơn lá sen to), nước khuấy theo con trỏ cuốn vật trôi theo hướng rê chuột
+      const k = d.ice ? .08 : d.big ? .3 : .6;
       d.vx = lerp(d.vx, wx * gust * 1.6 * k * 4, dt * .5); d.vz = lerp(d.vz, wz * gust * 1.6 * k * 4, dt * .5);
-      if (pointer) { const ddx = d.x - pointer.x, ddz = d.z - pointer.z, dd = Math.hypot(ddx, ddz); if (dd < 4) { d.vx += ddx / dd * (4 - dd) * dt * 3; d.vz += ddz / dd * (4 - dd) * dt * 3; } }
+      if (pointer) {
+        const ddx = d.x - pointer.x, ddz = d.z - pointer.z, dd = Math.hypot(ddx, ddz) || 1e-3, R = 6;
+        if (dd < R) {
+          const fall = (1 - dd / R) ** 2, kf = (d.big ? 1.1 : 2.4) * fall * dt;
+          d.vx += (pointer.vx || 0) * kf + ddx / dd * (4 - Math.min(dd, 4)) * dt * 2; d.vz += (pointer.vz || 0) * kf + ddz / dd * (4 - Math.min(dd, 4)) * dt * 2;
+          d.spin += ((pointer.vx || 0) * ddz - (pointer.vz || 0) * ddx) / (dd * dd + 4) * dt * (d.big ? .05 : .3);   // dòng xoáy làm vật xoay
+        }
+      }
+      d.spin *= Math.exp(-dt * .4);
+      // lá/hoa sen có cuống neo dưới đáy: trôi dạt quanh chỗ mọc rồi bị kéo về
+      if (d.big && !d.ice && d.hx !== undefined) { d.vx += (d.hx - d.x) * dt * .18; d.vz += (d.hz - d.z) * dt * .18; }
       for (const f of fish) { if (f.y < -1.4) continue; const [hx, hz] = f.head(), ddx = d.x - hx, ddz = d.z - hz, dd = Math.hypot(ddx, ddz); if (dd < 2.5 && dd > 0) { d.vx += ddx / dd * dt * 4; d.vz += ddz / dd * dt * 4; } }
       // lá/hoa sen va nhau thì bị đẩy tách ra, không chồng lên nhau
       if (d.big && !d.dying) for (const o of drifters) {
@@ -1938,7 +2295,7 @@ renderer.setAnimationLoop((ts) => {
   updateFood(dt, t, wx, wz, gust);
 
   // Mô phỏng mặt nước
-  if (pointer) pointer.speed *= Math.exp(-dt * 6);
+  if (pointer) { const k = Math.exp(-dt * 6); pointer.speed *= k; pointer.vx *= k; pointer.vz *= k; }
   const vel = hasPtr ? ptrUV.clone().sub(prevUV) : new THREE.Vector2();
   stir.u.uPrev.value = stirBuf.read.texture; stir.u.uPtr.value.copy(ptrUV); stir.u.uPtrVel.value.copy(vel); stir.u.uDt.value = dt;
   stir.u.uDrift.value.set(wx * gust * .012, -wz * gust * .012);
@@ -1960,5 +2317,7 @@ renderer.setAnimationLoop((ts) => {
   comp.u.uTime.value = t; comp.u.uGust.value = gust; comp.u.uWind.value.set(wx, -wz);
   renderer.setRenderTarget(null); renderer.clear(); renderer.render(comp.s, qCam);
   renderer.render(overScene, camera);
+  updateNight(dt, t);
+  if (NIGHT.k > 0) renderNight(t, gust, wind);
 });
 window.__pond = { camera, fish, drifters, setSeason, layers, slots, insects, foods, tossFood, get busy() { return busy; }, get season() { return season; } };
