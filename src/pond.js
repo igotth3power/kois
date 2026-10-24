@@ -559,71 +559,110 @@ function treeArt(S, key) {
 
 
 // ---------- Hoa sen vẽ chi tiết ----------
-// Lá sen nhìn từ trên: mép gợn sóng có khía, xanh đậm dần ra mép, gân sáng toả từ tâm và rẽ nhánh,
-// một đoạn mép cong lên bắt sáng, giọt nước đọng.
+// Lá sen nhìn từ trên, vẽ kiểu màu nước + mực: mảng xanh xám loang, mép đọng màu đậm (wet edge), mép gợn sóng
+// không tròn đều, khe chẻ hẹp từ tâm, gân mảnh toả ra rẽ đôi gần mép, một đoạn mép cong lên bắt sáng,
+// viền mực đứt quãng; lá thu ngả vàng có đốm nâu.
 function lotusLeafArt(s, cx, cy, R, rotDeg, autumn, seed) {
   const { E, G, R: Rng, f } = Ink, r = Rng(seed), rot = rotDeg * Math.PI / 180, id = 'll' + seed;
-  const pts = [], N = 72, notch = .2;
-  for (let i = 0; i <= N; i++) {
-    const a = rot + notch + i / N * (TAU - 2 * notch);
-    const k = 1 + .025 * Math.sin(a * 9 + seed) + .018 * Math.sin(a * 23 + seed * 2) + (r() - .5) * .012;
-    pts.push([cx + Math.cos(a) * R * k, cy + Math.sin(a) * R * k]);
-  }
-  const d = `M${f(cx + Math.cos(rot) * R * .08)},${f(cy + Math.sin(rot) * R * .08)}L` + pts.map(p => f(p[0]) + ',' + f(p[1])).join('L') + 'Z';
-  const c0 = autumn ? '#b4a35a' : '#9cbb72', c1 = autumn ? '#8a7a3a' : '#5f8546', c2 = autumn ? '#5c4f22' : '#3a5a2a';
+  const sq = .9 + r() * .1, notch = .018 + r() * .012, N = 110;
+  const ph1 = r() * TAU, ph2 = r() * TAU, ph3 = r() * TAU;
+  const P = (a, k) => { const x = Math.cos(a) * R * k, y = Math.sin(a) * R * k * sq; return [cx + x * Math.cos(rot) - y * Math.sin(rot), cy + x * Math.sin(rot) + y * Math.cos(rot)]; };
+  const edgeK = a => 1 + .035 * Math.sin(a * 5 + ph1) + .022 * Math.sin(a * 11 + ph2) + .01 * Math.sin(a * 27 + ph3);
+  const pts = [];
+  for (let i = 0; i <= N; i++) { const a = notch + i / N * (TAU - 2 * notch); pts.push(P(a, edgeK(a))); }
+  const c = P(0, .02);
+  const d = `M${f(c[0])},${f(c[1])}L` + pts.map(p => f(p[0]) + ',' + f(p[1])).join('L') + 'Z';
+  const pal = autumn ? ['#c2b27a', '#9c8a50', '#6e5e30', '#3e3418', '#e6dcb0'] : ['#a7b583', '#74885a', '#4c6240', '#26331f', '#dfe8c8'];
   const defs = E(s, 'defs');
-  const g = E(defs, 'radialGradient', { id, cx: .48, cy: .48, r: .55 });
-  E(g, 'stop', { offset: 0, 'stop-color': c0 }); E(g, 'stop', { offset: .55, 'stop-color': c1 }); E(g, 'stop', { offset: 1, 'stop-color': c2 });
-  E(s, 'path', { d, fill: '#000', opacity: .25, filter: 'url(#blurM)', transform: 'translate(3,4)' });
-  E(s, 'path', { d, fill: `url(#${id})` });
-  const wash = G(s, { opacity: .18, filter: 'url(#bleed)' });
-  for (let i = 0; i < 4; i++) { const a = r() * TAU, rr = R * (.3 + r() * .5); E(wash, 'ellipse', { cx: f(cx + Math.cos(a) * rr), cy: f(cy + Math.sin(a) * rr), rx: f(R * .3), ry: f(R * .2), fill: c2 }); }
-  // gân: từ tâm ra mép, rẽ đôi gần mép
-  const vg = G(s, { stroke: autumn ? '#e8dcaa' : '#d6e8bc', fill: 'none', 'stroke-linecap': 'round', opacity: .55 });
-  for (let i = 0; i < 19; i++) {
-    const a = rot + notch + (i + .5) / 19 * (TAU - 2 * notch), bend = (r() - .5) * .08;
-    const m = [cx + Math.cos(a + bend) * R * .55, cy + Math.sin(a + bend) * R * .55], e = [cx + Math.cos(a) * R * .8, cy + Math.sin(a) * R * .8];
-    E(vg, 'path', { d: `M${f(cx)},${f(cy)}Q${f(m[0])},${f(m[1])} ${f(e[0])},${f(e[1])}`, 'stroke-width': 1.1 });
-    for (const sd of [-1, 1]) E(vg, 'path', { d: `M${f(e[0])},${f(e[1])}L${f(cx + Math.cos(a + sd * .07) * R * .95)},${f(cy + Math.sin(a + sd * .07) * R * .95)}`, 'stroke-width': .6 });
+  const cp = E(defs, 'clipPath', { id: id + 'c' }); E(cp, 'path', { d });
+  const g = E(defs, 'radialGradient', { id, cx: .5, cy: .5, r: .55 });
+  E(g, 'stop', { offset: 0, 'stop-color': pal[0] }); E(g, 'stop', { offset: .6, 'stop-color': pal[1] }); E(g, 'stop', { offset: 1, 'stop-color': pal[2] });
+  // bóng lá trên mặt nước
+  E(s, 'path', { d, fill: '#1a2018', opacity: .22, filter: 'url(#blurM)', transform: 'translate(2.5,3.5)' });
+  E(s, 'path', { d, fill: `url(#${id})`, opacity: .93 });
+  const L = G(s, { 'clip-path': `url(#${id}c)` });
+  // loang màu: mảng đậm nhạt chồng nhau như màu nước còn ướt
+  const wash = G(L, { filter: 'url(#bleed)' });
+  for (let i = 0; i < 9; i++) { const a = r() * TAU, k = .2 + r() * .7, q = P(a, k); E(wash, 'ellipse', { cx: f(q[0]), cy: f(q[1]), rx: f(R * (.16 + r() * .22)), ry: f(R * (.1 + r() * .16)), fill: r() < .55 ? pal[2] : pal[0], opacity: .3 + r() * .2 }); }
+  E(L, 'rect', { x: f(cx - R * 1.2), y: f(cy - R * 1.2), width: f(R * 2.4), height: f(R * 2.4), filter: 'url(#stain)', opacity: .55 });
+  E(L, 'rect', { x: f(cx - R * 1.2), y: f(cy - R * 1.2), width: f(R * 2.4), height: f(R * 2.4), filter: 'url(#paperTex)', opacity: .5 });
+  // tâm lá sáng hơn
+  E(L, 'circle', { cx: f(c[0]), cy: f(c[1]), r: f(R * .3), fill: pal[0], opacity: .35, filter: 'url(#blurM)' });
+  // mép đọng màu (wet edge): nét đậm dọc mép, nhoè vào trong
+  E(L, 'path', { d, fill: 'none', stroke: pal[2], 'stroke-width': f(R * .16), opacity: .5, filter: 'url(#blurS)' });
+  E(L, 'path', { d, fill: 'none', stroke: pal[3], 'stroke-width': f(R * .05), opacity: .35, filter: 'url(#blurS)' });
+  // gân: mảnh, hơi cong, rẽ đôi ở 2/3 bán kính, nhạt dần ra mép
+  const vg = G(L, { stroke: pal[4], fill: 'none', 'stroke-linecap': 'round' });
+  const nv = 17 + Math.floor(r() * 5);
+  for (let i = 0; i < nv; i++) {
+    const a = notch + (i + .5) / nv * (TAU - 2 * notch) + (r() - .5) * .06, bend = (r() - .5) * .1;
+    const m = P(a + bend, .4), e = P(a, .66);
+    E(vg, 'path', { d: `M${f(c[0])},${f(c[1])}Q${f(m[0])},${f(m[1])} ${f(e[0])},${f(e[1])}`, 'stroke-width': .7, opacity: .32 + r() * .2 });
+    for (const sd of [-1, 1]) { const t = P(a + sd * .09, .93 * edgeK(a)); E(vg, 'path', { d: `M${f(e[0])},${f(e[1])}L${f(t[0])},${f(t[1])}`, 'stroke-width': .4, opacity: .22 }); }
   }
-  E(s, 'circle', { cx, cy, r: f(R * .07), fill: autumn ? '#d8c890' : '#c4dca0', opacity: .9 });
-  E(s, 'path', { d, fill: 'none', stroke: c2, 'stroke-width': 1.4, opacity: .8, filter: 'url(#brushF)' });
-  // mép cong lên bắt sáng
-  const a0 = rot + 1.2 + r() * 2.5, arc = [];
-  for (let i = 0; i <= 12; i++) { const a = a0 + i / 12 * 1.1; arc.push([cx + Math.cos(a) * R * .95, cy + Math.sin(a) * R * .95]); }
-  E(s, 'path', { d: 'M' + arc.map(p => f(p[0]) + ',' + f(p[1])).join('L'), fill: 'none', stroke: autumn ? '#e6d79a' : '#cfe4a8', 'stroke-width': 3.2, opacity: .55, 'stroke-linecap': 'round' });
-  // giọt nước đọng
-  if (!autumn) for (let i = 0; i < 2 + Math.floor(r() * 3); i++) {
-    const a = r() * TAU, rr = R * (.2 + r() * .5), x = cx + Math.cos(a) * rr, y = cy + Math.sin(a) * rr, dr = 1.6 + r() * 2.2;
-    E(s, 'circle', { cx: f(x + .6), cy: f(y + .9), r: f(dr), fill: '#1f3018', opacity: .3 });
-    E(s, 'circle', { cx: f(x), cy: f(y), r: f(dr), fill: '#e9f3dc', opacity: .45 });
-    E(s, 'circle', { cx: f(x - dr * .35), cy: f(y - dr * .35), r: f(dr * .3), fill: '#fff', opacity: .95 });
+  E(L, 'circle', { cx: f(c[0]), cy: f(c[1]), r: f(R * .05), fill: pal[4], opacity: .75 });
+  E(L, 'circle', { cx: f(c[0]), cy: f(c[1]), r: f(R * .022), fill: pal[2], opacity: .7 });
+  // lá già/lá thu: đốm cháy nâu loang từ mép
+  const spots = autumn ? 2 + Math.floor(r() * 3) : (r() < .35 ? 1 : 0);
+  for (let i = 0; i < spots; i++) { const a = r() * TAU, q = P(a, .75 + r() * .3); E(L, 'ellipse', { cx: f(q[0]), cy: f(q[1]), rx: f(R * (.08 + r() * .12)), ry: f(R * (.06 + r() * .08)), fill: autumn ? '#5a3a18' : '#7a6a34', opacity: .45, filter: 'url(#bleed)' }); }
+  // mép cong lên bắt sáng + bóng mảnh phía trong
+  const a0 = notch + .5 + r() * 4, arc = [], arcIn = [];
+  for (let i = 0; i <= 14; i++) { const a = a0 + i / 14 * (.9 + r() * .2); arc.push(P(a, .97 * edgeK(a))); arcIn.push(P(a, .9 * edgeK(a))); }
+  E(L, 'path', { d: 'M' + arcIn.map(p => f(p[0]) + ',' + f(p[1])).join('L'), fill: 'none', stroke: pal[3], 'stroke-width': 1.2, opacity: .3, filter: 'url(#blurS)' });
+  E(L, 'path', { d: 'M' + arc.map(p => f(p[0]) + ',' + f(p[1])).join('L'), fill: 'none', stroke: pal[4], 'stroke-width': 2.6, opacity: .5, 'stroke-linecap': 'round' });
+  // viền mực đứt quãng, đậm nhạt không đều
+  const dash = Array.from({ length: 8 }, () => f(8 + r() * 30) + ' ' + f(1 + r() * 6)).join(' ');
+  E(s, 'path', { d, fill: 'none', stroke: pal[3], 'stroke-width': .9, opacity: .7, 'stroke-dasharray': dash, filter: 'url(#brushF)' });
+  // giọt nước đọng: vài giọt nhỏ
+  if (!autumn) for (let i = 0; i < Math.floor(r() * 3); i++) {
+    const q = P(r() * TAU, .2 + r() * .45), dr = 1.2 + r() * 1.6;
+    E(s, 'circle', { cx: f(q[0] + .5), cy: f(q[1] + .7), r: f(dr), fill: pal[3], opacity: .25 });
+    E(s, 'circle', { cx: f(q[0]), cy: f(q[1]), r: f(dr), fill: '#eef4e2', opacity: .4 });
+    E(s, 'circle', { cx: f(q[0] - dr * .35), cy: f(q[1] - dr * .35), r: f(dr * .3), fill: '#fff', opacity: .9 });
   }
 }
-// Hoa sen nhìn từ trên: 3 lớp cánh nhọn, gốc trắng đầu hồng có gân, đài sen vàng có hạt, nhị vàng quanh đài.
+// Hoa sen nhìn từ trên (hơi nghiêng): 3 vòng cánh, cánh ngoài xoè rộng, cánh trong khum đứng nên ngắn và chồng lên nhau;
+// mỗi cánh trắng ở gốc chuyển hồng ở đầu, gân mảnh song song, viền mực hồng mảnh; giữa là đài sen xanh vàng có lỗ hạt,
+// vòng nhị vàng. Bóng hoa đổ xa vì hoa vươn cao khỏi mặt nước.
 function lotusFlowerArt(s, cx, cy, R, seed) {
-  const { E, G, R: Rng, f } = Ink, r = Rng(seed);
-  const petal = (len, wid) => `M0,0 C${f(wid)},${f(-len * .25)} ${f(wid * .9)},${f(-len * .75)} 0,${f(-len)} C${f(-wid * .9)},${f(-len * .75)} ${f(-wid)},${f(-len * .25)} 0,0Z`;
-  E(s, 'circle', { cx: f(cx + 2), cy: f(cy + 3), r: f(R * .9), fill: '#000', opacity: .22, filter: 'url(#blurM)' });
-  for (const [n, len, wid, off, tip] of [[9, R, R * .36, 0, '#e27a9b'], [7, R * .78, R * .32, .35, '#ea93ad'], [5, R * .55, R * .26, .1, '#f2b6c8']]) {
-    for (let i = 0; i < n; i++) {
-      const a = (i / n + off / n) * 360 + (r() - .5) * 8, g = G(s, { transform: `translate(${f(cx)},${f(cy)}) rotate(${f(a)})` });
-      E(g, 'path', { d: petal(len * (.92 + r() * .12), wid), fill: tip, stroke: '#9a3a5a', 'stroke-width': .5, opacity: .97 });
-      E(g, 'path', { d: petal(len * .62, wid * .78), fill: '#fbf1f2', opacity: .85, filter: 'url(#blurS)' });
-      const vg = G(g, { stroke: '#c0607e', 'stroke-width': .35, fill: 'none', opacity: .45 });
-      for (const k of [-.35, 0, .35]) E(vg, 'path', { d: `M0,${f(-len * .1)} Q${f(wid * k * .9)},${f(-len * .5)} ${f(wid * k * .5)},${f(-len * .9)}` });
-    }
+  const { E, G, R: Rng, f } = Ink, r = Rng(seed), id = 'lf' + seed;
+  const defs = E(s, 'defs');
+  for (const [k, tip] of [[0, '#de7799'], [1, '#e78fab'], [2, '#efa9bf']]) {
+    const g = E(defs, 'linearGradient', { id: id + k, x1: 0, y1: 1, x2: 0, y2: 0 });
+    E(g, 'stop', { offset: 0, 'stop-color': '#f6ece6' }); E(g, 'stop', { offset: .3, 'stop-color': '#fffaf7' }); E(g, 'stop', { offset: .62, 'stop-color': '#fbe6ec' }); E(g, 'stop', { offset: 1, 'stop-color': tip });
   }
-  for (let i = 0; i < 26; i++) { const a = i / 26 * TAU, r1 = R * .2, r2 = R * (.3 + r() * .06); E(s, 'line', { x1: f(cx + Math.cos(a) * r1), y1: f(cy + Math.sin(a) * r1), x2: f(cx + Math.cos(a) * r2), y2: f(cy + Math.sin(a) * r2), stroke: '#e3b23c', 'stroke-width': .7 }); E(s, 'circle', { cx: f(cx + Math.cos(a) * r2), cy: f(cy + Math.sin(a) * r2), r: .8, fill: '#c98a1e' }); }
-  E(s, 'circle', { cx, cy, r: f(R * .2), fill: '#d8cf5a', stroke: '#8a8a2a', 'stroke-width': .6 });
-  for (let i = 0; i < 7; i++) { const a = i / 7 * TAU, rr = i ? R * .11 : 0; E(s, 'circle', { cx: f(cx + Math.cos(a) * rr), cy: f(cy + Math.sin(a) * rr), r: f(R * .035), fill: '#7a7a22' }); }
+  const petal = (len, wid, cup) => `M0,0 C${f(wid * .9)},${f(-len * .18)} ${f(wid)},${f(-len * (.62 - cup))} ${f(wid * .1)},${f(-len * .96)} Q0,${f(-len * 1.04)} ${f(-wid * .1)},${f(-len * .96)} C${f(-wid)},${f(-len * (.62 - cup))} ${f(-wid * .9)},${f(-len * .18)} 0,0Z`;
+  const tilt = G(s, { transform: `translate(${f(cx)},${f(cy)}) rotate(${f(r() * 360)}) scale(1,${f(.86 + r() * .1)})` });
+  E(tilt, 'circle', { cx: 5, cy: 7, r: f(R * .95), fill: '#1a2018', opacity: .2, filter: 'url(#blurM)' });
+  const layers = [[7, R, R * .5, 0, 0], [6, R * .78, R * .44, .5, .08], [5, R * .52, R * .36, .2, .16]];
+  layers.forEach(([n, len, wid, off, cup], li) => {
+    // bóng mềm của vòng cánh trong đổ xuống vòng ngoài
+    if (li) E(tilt, 'circle', { r: f(len * .9), fill: '#7a3048', opacity: .2, filter: 'url(#blurM)' });
+    for (let i = 0; i < n; i++) {
+      const a = (i + off + (r() - .5) * .3) / n * 360, L2 = len * (.88 + r() * .2), W2 = wid * (.9 + r() * .2);
+      const g = G(tilt, { transform: `rotate(${f(a)})` });
+      E(g, 'path', { d: petal(L2, W2, cup), fill: `url(#${id}${li})`, opacity: .97 });
+      E(g, 'ellipse', { cx: 0, cy: f(-L2 * .82), rx: f(W2 * .45), ry: f(L2 * .18), fill: '#d0577f', opacity: .16, filter: 'url(#blurS)' });   // đầu cánh đậm màu
+      const vg = G(g, { stroke: '#c76a8c', 'stroke-width': .3, fill: 'none', opacity: .4 });
+      for (const k of [-.55, -.25, 0, .25, .55]) E(vg, 'path', { d: `M${f(W2 * k * .2)},${f(-L2 * .08)} Q${f(W2 * k * .95)},${f(-L2 * .5)} ${f(W2 * k * .35)},${f(-L2 * .9)}` });
+      E(g, 'path', { d: petal(L2, W2, cup), fill: 'none', stroke: '#a3405f', 'stroke-width': .4, opacity: .45, filter: 'url(#brushF)' });
+    }
+  });
+  // nhị: sợi vàng + bao phấn
+  for (let i = 0; i < 34; i++) { const a = i / 34 * TAU + (r() - .5) * .1, r1 = R * .17, r2 = R * (.27 + r() * .07); E(tilt, 'line', { x1: f(Math.cos(a) * r1), y1: f(Math.sin(a) * r1), x2: f(Math.cos(a) * r2), y2: f(Math.sin(a) * r2), stroke: '#e9c44e', 'stroke-width': .55 }); E(tilt, 'circle', { cx: f(Math.cos(a) * r2), cy: f(Math.sin(a) * r2), r: .7, fill: '#d59a26' }); }
+  // đài sen
+  E(tilt, 'circle', { r: f(R * .19), fill: '#cdd27a', stroke: '#7d8a3a', 'stroke-width': .6 });
+  E(tilt, 'circle', { cx: f(-R * .04), cy: f(-R * .05), r: f(R * .1), fill: '#e4e6a4', opacity: .7, filter: 'url(#blurS)' });
+  for (let i = 0; i < 8; i++) { const a = i / 7 * TAU, rr = i ? R * .11 : 0; E(tilt, 'circle', { cx: f(Math.cos(a) * rr), cy: f(Math.sin(a) * rr), r: f(R * .03), fill: '#6f7a2c', opacity: .85 }); }
 }
 function lotusBudArt(s, cx, cy) {
-  const { E, f } = Ink;
-  E(s, 'ellipse', { cx: cx + 2, cy: cy + 3, rx: 9, ry: 15, fill: '#000', opacity: .2, filter: 'url(#blurM)' });
-  E(s, 'path', { d: `M${cx},${cy - 18} C${cx + 11},${cy - 8} ${cx + 10},${cy + 10} ${cx},${cy + 14} C${cx - 10},${cy + 10} ${cx - 11},${cy - 8} ${cx},${cy - 18}Z`, fill: '#e58aa6', stroke: '#9a3a5a', 'stroke-width': .7 });
-  E(s, 'path', { d: `M${cx},${cy + 14} C${cx - 6},${cy + 6} ${cx - 4},${cy - 8} ${cx},${cy - 18} C${cx + 4},${cy - 8} ${cx + 6},${cy + 6} ${cx},${cy + 14}Z`, fill: '#f6cbd8', opacity: .8 });
-  E(s, 'path', { d: `M${cx - 7},${cy + 9} Q${cx},${cy + 3} ${cx + 7},${cy + 9}`, fill: 'none', stroke: '#5f8546', 'stroke-width': 2.4, 'stroke-linecap': 'round' });
+  const { E, f } = Ink, id = 'lb' + cx;
+  const defs = E(s, 'defs'), g = E(defs, 'linearGradient', { id, x1: 0, y1: 1, x2: 0, y2: 0 });
+  E(g, 'stop', { offset: 0, 'stop-color': '#f7dde5' }); E(g, 'stop', { offset: .6, 'stop-color': '#e88aa8' }); E(g, 'stop', { offset: 1, 'stop-color': '#cf5f86' });
+  E(s, 'ellipse', { cx: cx + 4, cy: cy + 6, rx: 9, ry: 15, fill: '#1a2018', opacity: .2, filter: 'url(#blurM)' });
+  E(s, 'path', { d: `M${cx},${cy - 18} C${cx + 11},${cy - 8} ${cx + 10},${cy + 10} ${cx},${cy + 14} C${cx - 10},${cy + 10} ${cx - 11},${cy - 8} ${cx},${cy - 18}Z`, fill: `url(#${id})`, stroke: '#a3405f', 'stroke-width': .6, filter: 'url(#brushF)' });
+  E(s, 'path', { d: `M${cx},${cy + 14} C${cx - 5},${cy + 6} ${cx - 4},${cy - 8} ${cx},${cy - 18}`, fill: 'none', stroke: '#b5577a', 'stroke-width': .5, opacity: .6 });
+  E(s, 'path', { d: `M${cx - 7},${cy + 9} Q${cx},${cy + 3} ${cx + 7},${cy + 9}`, fill: 'none', stroke: '#5c7046', 'stroke-width': 2.4, 'stroke-linecap': 'round' });
 }
 
 function spriteSVG(w, h, draw) { const s = newSVG(w, h, 2); draw(s); return s; }
@@ -634,7 +673,7 @@ async function spriteSet(key) {
     out.lotus = await Promise.all([0, 1, 2, 3].map(i => raster(spriteSVG(100, 100, s => lotusLeafArt(s, 50, 50, 44, i * 95 + 20, key === 'autumn', 900 + i)))));
   }
   if (SEASONS[key].flowers) {
-    out.flower = await Promise.all([0, 1].map(i => raster(spriteSVG(110, 110, s => { lotusLeafArt(s, 55, 55, 46, 40 + i * 140, false, 950 + i); lotusFlowerArt(s, 55 + (i ? 6 : -4), 55 + (i ? -5 : 3), 25, 960 + i); }))));
+    out.flower = await Promise.all([0, 1].map(i => raster(spriteSVG(130, 130, s => { lotusLeafArt(s, i ? 72 : 58, 66, 46, 40 + i * 140, false, 950 + i); lotusFlowerArt(s, i ? 46 : 84, i ? 48 : 52, 28, 960 + i); }))));   // hoa vươn lên cạnh lá, không nằm giữa lá
     out.bud = [await raster(spriteSVG(60, 60, s => lotusBudArt(s, 30, 30)))];
   }
   if (key === 'spring') out.fall = await Promise.all([0, 1].map(i => raster(spriteSVG(20, 20, s => Ink.petal(s, 10, 10, 2.2, i * 40, i ? '#f6c9d4' : '#f2b8c6')))));
@@ -1307,7 +1346,7 @@ async function setSeason(key) {
   buildSlots(key, layer);
   const r = Math.random;
   for (let i = 0; i < S.lotus; i++) addFloat(sprites.lotus[i % sprites.lotus.length], rnd(3.6, 6.4), .15 + r() * .75);
-  for (let i = 0; i < S.flowers; i++) addFloat(sprites.flower[i % sprites.flower.length], rnd(5.4, 7), .2 + r() * .7, false, true);
+  for (let i = 0; i < S.flowers; i++) addFloat(sprites.flower[i % sprites.flower.length], rnd(6.4, 8.2), .2 + r() * .7, false, true);
   if (sprites.bud) for (let i = 0; i < 3; i++) addFloat(sprites.bud[0], rnd(1.6, 2.1), .25 + r() * .6, false, true);
   for (const b of insects) b.dying = true;
   insects.push(...SEASON_INSECTS[key]());
@@ -1396,7 +1435,7 @@ function spawnFall(c, size, x, y, z, kind, rot = rnd(0, TAU)) {
   if (kind !== 'snow') { sh = new THREE.Mesh(m.geometry, shadowMat(c)); sh.rotation.x = -Math.PI / 2; sh.renderOrder = 27; overScene.add(sh); }
   // [tốc độ lật, độ trượt ngang, hệ số rơi]: cánh hoa lật nhanh, lá phong lắc lư như con lắc
   const P = { petal: [rnd(5, 9), .55, 1.0], bloom: [rnd(2.5, 4), .8, 1.1], leaf: [rnd(1.6, 3), 2.4, 1.4], snow: [0, 0, 1] }[kind];
-  drifters.push({ m, sh, state: 'fall', kind, x, y, z, vy: -.3, phi: rnd(0, TAU), phiRate: P[0] * (Math.random() < .5 ? -1 : 1), glide: P[1], fallK: P[2], dir: rnd(0, TAU), spin: rnd(-1.5, 1.5), rot, a: kind === 'snow' ? 0 : 1, life: Infinity, snow: kind === 'snow', flutter: rnd(0, 6) });
+  drifters.push({ m, sh, state: 'fall', kind, size, x, y, z, vx: 0, vz: 0, vy: -.3, phi: rnd(0, TAU), phiRate: P[0] * (Math.random() < .5 ? -1 : 1), glide: P[1], fallK: P[2], dir: rnd(0, TAU), spin: rnd(-1.5, 1.5), rot, a: kind === 'snow' ? 0 : 1, life: Infinity, snow: kind === 'snow', flutter: rnd(0, 6) });
 }
 function spawnSnow() {
   const y = rnd(TREE_Y - 2, TREE_Y + 4), [x, z] = d2w(rnd(-40, DW + 40), rnd(-40, DH + 40), y);
@@ -1846,7 +1885,7 @@ renderer.setAnimationLoop((ts) => {
         const [dx, dy] = w2d(d.x, d.z, FLOAT_Y);
         if (pondE(dx, dy) < .97) {
           const [u, v] = d2uv(dx, dy);
-          if (d.snow) { d.state = 'melt'; } else { d.state = 'float'; d.life = rnd(18, 30); splash(u, v, .006, d.kind === 'leaf' ? .2 : .12); }
+          if (d.snow) { d.state = 'melt'; } else { d.state = 'float'; d.life = { petal: 14, bloom: 20, leaf: 24 }[d.kind] * Math.sqrt(d.size) * rnd(.75, 1.25); d.sinkable = true; splash(u, v, .006, d.kind === 'leaf' ? .2 : .12); }   // nổi lâu hay mau tuỳ to nhỏ, rồi ngấm nước và chìm
         } else { d.state = 'land'; d.life = d.snow ? rnd(3, 6) : rnd(8, 14); d.m.renderOrder = 22; }
         d.y = FLOAT_Y;
       }
@@ -1866,13 +1905,31 @@ renderer.setAnimationLoop((ts) => {
       if (e > .93) { const [cx, cz] = d2w(POND.cx, POND.cy, FLOAT_Y), l = Math.hypot(cx - d.x, cz - d.z); d.vx += (cx - d.x) / l * dt * 2; d.vz += (cz - d.z) / l * dt * 2; }
       d.y = FLOAT_Y + Math.sin(t * 2 + d.x) * .02;
       if (!d.dying) d.a = Math.min(1, d.a + dt);
-      d.life -= dt; if (d.life < 0) d.dying = true;
+      d.life -= dt;
+      if (d.sinkable && !d.dying) {
+        if (d.life < 2) mat.color.setScalar(lerp(.82, 1, clamp(d.life / 2, 0, 1)));   // ngấm nước: sẫm dần trước khi chìm
+        if (d.life < 0) {
+          // chuyển xuống cảnh dưới nước: nhìn qua mặt nước (khúc xạ, gợn), bị thân cá phía trên che
+          overScene.remove(d.m); waterScene.add(d.m); mat.depthTest = true;
+          d.state = 'sink'; d.vy = -{ petal: .22, bloom: .28, leaf: .32 }[d.kind] * rnd(.8, 1.2); d.phi = 0; d.y0 = d.y;
+          const [u, v] = d2uv(...w2d(d.x, d.z, FLOAT_Y)); splash(u, v, .004, .05);
+        }
+      } else if (d.life < 0) d.dying = true;
+    } else if (d.state === 'sink') {
+      // chìm chậm, đung đưa và lật nhẹ, sẫm và mờ dần theo độ sâu
+      const depth = d.y0 - d.y;
+      d.phi += dt * .7; d.y += d.vy * dt;
+      d.x += (Math.sin(t * 1.3 + d.dir * 5) * .25 + d.vx * .3) * dt; d.z += (Math.cos(t * 1.1 + d.dir * 3) * .25 + d.vz * .3) * dt;
+      d.m.rotation.z += d.spin * dt * .3; d.m.scale.set(Math.max(.45, Math.abs(Math.cos(d.phi * .5))), 1, 1);
+      mat.color.setScalar(lerp(.82, .4, clamp(depth / 3.5, 0, 1)));
+      d.a = Math.min(d.a, 1 - clamp(depth / 4, 0, 1));
+      if (d.a <= 0) d.dying = true;
     } else if (d.state === 'land') { d.life -= dt; if (d.life < 0) d.dying = true; }
     else if (d.state === 'melt') { d.dying = true; }
     if (d.dying) d.a -= dt / (d.state === 'melt' ? .4 : 1.6);
     mat.opacity = clamp(d.a, 0, 1) * (d.snow ? .9 : 1);
     d.m.position.set(d.x, d.y, d.z);
-    if (d.dying && d.a <= 0) { if (d.sh) { overScene.remove(d.sh); d.sh.material.dispose(); } overScene.remove(d.m); mat.dispose(); d.m.geometry.dispose(); drifters.splice(i, 1); }
+    if (d.dying && d.a <= 0) { if (d.sh) { overScene.remove(d.sh); d.sh.material.dispose(); } d.m.removeFromParent(); mat.dispose(); d.m.geometry.dispose(); drifters.splice(i, 1); }
   }
   // côn trùng
   for (let i = insects.length - 1; i >= 0; i--) { const b = insects[i]; b.update(dt, t); if (b.dying && b.a <= 0) { b.dispose(); insects.splice(i, 1); } }
