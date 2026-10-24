@@ -1578,7 +1578,7 @@ class Frog {
   constructor(host) {
     this.host = host; this.ang = rnd(0, TAU); this.r = host.rad * rnd(.1, .4); this.rot = rnd(0, TAU);
     this.mats = [frogMat({ vertexColors: true }), frogMat({ color: '#efe6c2' })];
-    this.m = new THREE.Group(); this.m.scale.setScalar(1.02); this.seed = rnd(0, 9);
+    this.m = new THREE.Group(); this.m.scale.setScalar(1.05); this.seed = rnd(0, 9);
     const body = new THREE.Mesh(FROG.geo, this.mats[0]); body.renderOrder = 13; this.m.add(body);
     this.sacM = new THREE.Mesh(FROG.sac, this.mats[1]); this.sacM.position.copy(FROG.chin); this.sacM.renderOrder = 13; this.m.add(this.sacM);   // túi kêu dưới cằm
     this.sh = glow(1.35, '#000', FLOAT_Y + .02, false); this.sh.renderOrder = 12.5;
@@ -1588,7 +1588,7 @@ class Frog {
   face() { const r = this.m.rotation.y; return [Math.sin(r), Math.cos(r)]; }   // đầu ếch hướng +z của mô hình
   update(dt, t, k) {
     const d = this.host;
-    this.m.scale.y = 1.02 * (1 + .025 * Math.sin(t * 3.1 + this.seed));   // thở
+    this.m.scale.y = 1.05 * (1 + .025 * Math.sin(t * 3.1 + this.seed));   // thở
     if (this.state === 'sit') {
       const hr = d.m.rotation.z + this.ang;
       this.x = d.x + Math.cos(hr) * this.r; this.z = d.z + Math.sin(hr) * this.r; this.y = FLOAT_Y + .05;
