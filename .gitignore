@@ -1,0 +1,6 @@
+node_modules/
+dist/
+.superpowers/
+.claude/
+# wallpaper Hades (bản quyền Supergiant Games) chỉ dùng cho demo cục bộ
+demos/stir/hades.jpg
