@@ -1,5 +1,5 @@
-// Hồ koi thủy mặc · three.js r186
-// Cá: "Koi Fish" by 7PLUS (CC BY 4.0) — sketchfab.com/3d-models/koi-fish-236859b809984f52b70c94fd040b9c59
+// Ink-wash koi pond · three.js r186
+// Fish: "Koi Fish" by 7PLUS (CC BY 4.0) — sketchfab.com/3d-models/koi-fish-236859b809984f52b70c94fd040b9c59
 import * as THREE from 'three';
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 
@@ -29,7 +29,7 @@ const Ink = (() => {
   }
   const bez = (c, t) => { const [p0, p1, p2, p3] = c, u = 1 - t; return [u*u*u*p0[0] + 3*u*u*t*p1[0] + 3*u*t*t*p2[0] + t*t*t*p3[0], u*u*u*p0[1] + 3*u*u*t*p1[1] + 3*u*t*t*p2[1] + t*t*t*p3[1]]; };
 
-  // Nét cọ thuôn: dày lúc nhấn, mảnh dần về cuối.
+  // Tapered brush stroke: thick at the press, thinning toward the end.
   function taperF(p, at, w, a = {}) {
     const N = 32, L = [], Rr = [];
     for (let i = 0; i <= N; i++) {
@@ -346,9 +346,9 @@ const INK_DEFS = `
   `;
 
 // ======================================================================
-// Khung cảnh: mọi lớp tranh vẽ trong toạ độ thiết kế 960×560, nhìn thẳng từ trên.
-// Mỗi lớp là một plane phủ đúng khung nhìn ở độ cao của nó, nên toạ độ thiết kế
-// trùng khớp màn hình dù lớp cao hay thấp.
+// Scene: every painted layer is drawn in 960×560 design coordinates, viewed straight from above.
+// Each layer is a plane covering exactly the view at its own height, so design coordinates
+// match the screen whether the layer is high or low.
 // ======================================================================
 const DW = 960, DH = 560, ASPECT = DW / DH, CAM_Y = 80, FOV = 28, TAU = Math.PI * 2;
 const lerp = (a, b, t) => a + (b - a) * t;
@@ -361,7 +361,7 @@ const renderer = new THREE.WebGLRenderer({ canvas, antialias: true });
 renderer.setPixelRatio(Math.min(2, window.devicePixelRatio));
 renderer.shadowMap.enabled = true;
 renderer.shadowMap.type = THREE.VSMShadowMap;
-renderer.toneMapping = THREE.NoToneMapping;          // giữ đúng màu giấy giữa lớp nước và lớp bờ
+renderer.toneMapping = THREE.NoToneMapping;          // keep the exact paper color between the water layer and the shore layer
 renderer.autoClear = false;
 
 const camera = new THREE.PerspectiveCamera(FOV, ASPECT, 1, 200);
@@ -373,19 +373,19 @@ const tmpV = new THREE.Vector3();
 const w2uv = (x, y, z) => { tmpV.set(x, y, z).project(camera); return [tmpV.x * .5 + .5, tmpV.y * .5 + .5]; };
 const d2uv = (dx, dy) => [dx / DW, 1 - dy / DH];
 
-// ---------- Hình hồ: elip có nhiễu điều hoà, dùng chung cho vẽ và cho cá tránh bờ ----------
+// ---------- Pond shape: ellipse with harmonic noise, shared by drawing and fish shore avoidance ----------
 const POND = { cx: 468, cy: 296, rx: 338, ry: 200, harm: [[2, .045, 1.1], [3, .06, .4], [5, .028, 2.2], [7, .016, .9]] };
 const pondR = (th) => POND.harm.reduce((r, [k, a, p]) => r + a * Math.sin(k * th + p), 1);
 const pondPt = (th, s = 1) => { const r = pondR(th) * s; return [POND.cx + Math.cos(th) * POND.rx * r, POND.cy + Math.sin(th) * POND.ry * r]; };
 const pondPathD = (s = 1, n = 90) => Ink.smooth(Array.from({ length: n }, (_, i) => pondPt(i / n * TAU, s)));
 const pondE = (dx, dy) => { const nx = (dx - POND.cx) / POND.rx, ny = (dy - POND.cy) / POND.ry; return Math.hypot(nx, ny) / pondR(Math.atan2(ny, nx)); };
 
-// ---------- Mùa ----------
+// ---------- Seasons ----------
 const SEASONS = {
-  spring: { name: '春', vi: 'Xuân', poem: '春池游鯉', sub: '花落水自流', paper: '#efe6d3', moss: '#3d5530', grass: '#4d6a38', water: '#1d2a28', sun: '#fff3ea', sunI: 2.1, hemi: .95, fall: 'petal', rate: 7, lotus: 3, flowers: 0 },
-  summer: { name: '夏', vi: 'Hạ', poem: '蓮池涼風', sub: '蜻蛉點水', paper: '#ece4cc', moss: '#2f4a24', grass: '#3d5a2c', water: '#16261f', sun: '#fff8e8', sunI: 2.4, hemi: 1.0, fall: null, rate: 0, lotus: 9, flowers: 4 },
-  autumn: { name: '秋', vi: 'Thu', poem: '紅葉浮水', sub: '風過池心', paper: '#ede0c6', moss: '#4a4426', grass: '#6b5a2a', water: '#2a2620', sun: '#ffe9cc', sunI: 2.1, hemi: .9, fall: 'leaf', rate: 3.2, lotus: 4, flowers: 0 },
-  winter: { name: '冬', vi: 'Đông', poem: '雪池靜鯉', sub: '寒梅一點紅', paper: '#ebe9e3', moss: '#2a2c2a', grass: '#7a7060', water: '#1e2428', sun: '#eef3ff', sunI: 1.8, hemi: 1.05, fall: 'snow', rate: 30, lotus: 0, flowers: 0 },
+  spring: { name: '春', en: 'Spring', poem: '春池游鯉', sub: '花落水自流', paper: '#efe6d3', moss: '#3d5530', grass: '#4d6a38', water: '#1d2a28', sun: '#fff3ea', sunI: 2.1, hemi: .95, fall: 'petal', rate: 7, lotus: 3, flowers: 0 },
+  summer: { name: '夏', en: 'Summer', poem: '蓮池涼風', sub: '蜻蛉點水', paper: '#ece4cc', moss: '#2f4a24', grass: '#3d5a2c', water: '#16261f', sun: '#fff8e8', sunI: 2.4, hemi: 1.0, fall: null, rate: 0, lotus: 9, flowers: 4 },
+  autumn: { name: '秋', en: 'Autumn', poem: '紅葉浮水', sub: '風過池心', paper: '#ede0c6', moss: '#4a4426', grass: '#6b5a2a', water: '#2a2620', sun: '#ffe9cc', sunI: 2.1, hemi: .9, fall: 'leaf', rate: 3.2, lotus: 4, flowers: 0 },
+  winter: { name: '冬', en: 'Winter', poem: '雪池靜鯉', sub: '寒梅一點紅', paper: '#ebe9e3', moss: '#2a2c2a', grass: '#7a7060', water: '#1e2428', sun: '#eef3ff', sunI: 1.8, hemi: 1.05, fall: 'snow', rate: 30, lotus: 0, flowers: 0 },
 };
 
 // ---------- SVG -> canvas ----------
@@ -406,10 +406,10 @@ async function raster(svg) {
   return c;
 }
 function canvasTex(c) { const t = new THREE.CanvasTexture(c); t.colorSpace = THREE.SRGBColorSpace; t.anisotropy = 8; return t; }
-const spriteTex = new WeakMap();                  // vật rơi dùng chung texture theo canvas
+const spriteTex = new WeakMap();                  // falling objects share a texture per canvas
 const sharedTex = (c) => { let t = spriteTex.get(c); if (!t) { t = canvasTex(c); spriteTex.set(c, t); } return t; };
 
-// ---------- Vẽ các lớp theo mùa ----------
+// ---------- Draw the seasonal layers ----------
 function floorArt(S) {
   const s = newSVG(), { E, G, R, blob } = Ink, r = R(11);
   Ink.paper(s, DW, DH, { seed: 7, col: S.paper, vig: .22 });
@@ -440,17 +440,17 @@ function shoreArt(S, key) {
     const x = r() * DW, y = r() * DH; if (pondE(x, y) < 1.08) continue;
     E(out, 'path', { d: blob(x, y, 20 + r() * 60, 10 + r() * 26, 600 + i, .35, 9), fill: '#fbfaf6', opacity: .75, filter: 'url(#bleed)' });
   }
-  // bóng bờ hắt xuống mặt nước
+  // shore shadow cast onto the water
   const inner = G(s, { 'clip-path': 'url(#pondClip)' });
   E(inner, 'path', { d: pondPathD(1), fill: 'none', stroke: '#141818', 'stroke-width': 34, opacity: .26, filter: 'url(#bleed)' });
   E(s, 'path', { d: pondPathD(1), fill: 'none', stroke: '#151515', 'stroke-width': 2.4, opacity: .82, filter: 'url(#brush)', 'stroke-dasharray': '190 10 70 6 260 14 90 8 140 12' });
   E(s, 'path', { d: pondPathD(1.016), fill: 'none', stroke: '#151515', 'stroke-width': 1, opacity: .4, filter: 'url(#brush)', 'stroke-dasharray': '60 30 120 22 40 18' });
 
-  // đá viền bờ: cụm lớn ở góc dưới trái và bên phải
+  // shore-edge rocks: large clusters at bottom-left and on the right
   const rocks = [];
   for (let i = 0; i < 40; i++) {
     const th = i / 40 * TAU + (r() - .5) * .1;
-    if (r() < .38) continue;                        // chừa khoảng trống: bờ không phải chuỗi hạt
+    if (r() < .38) continue;                        // leave gaps: the shore is not a string of beads
     const big = r() < .25;
     rocks.push([th, 1.035 + r() * .06, big ? 13 + r() * 10 : 5 + r() * 8]);
     if (big && r() < .6) rocks.push([th + (r() - .5) * .05, 1.1 + r() * .05, 5 + r() * 6]);
@@ -458,11 +458,11 @@ function shoreArt(S, key) {
   for (const [th, k, sz] of [[2.3, 1.1, 30], [2.45, 1.16, 20], [2.15, 1.18, 16], [.15, 1.1, 26], [.32, 1.15, 16], [4.4, 1.1, 18], [3.6, 1.12, 22]]) rocks.push([th, k, sz]);
   rocks.forEach(([th, k, sz], i) => {
     const [x, y] = pondPt(th, k);
-    if (x > 600 && y < 150) return;                 // dưới tán cây góc phải, để trống
+    if (x > 600 && y < 150) return;                 // under the tree canopy at top right, leave empty
     Ink.rock(s, x, y, sz, 700 + i, { moss: S.moss, hi: S.paper });
     if (key === 'winter') E(s, 'path', { d: blob(x - sz * .1, y - sz * .3, sz * .75, sz * .38, 800 + i, .3, 8), fill: '#fdfcf8', opacity: .95, filter: 'url(#brushF)' });
   });
-  // cỏ ven bờ + khóm diên vĩ: sprite riêng lay theo gió (buildPlants)
+  // shoreline grass + iris clumps: separate sprites swaying in the wind (buildPlants)
   Ink.stepStones(s, [[150, 470, 13], [118, 500, 12], [92, 530, 13], [70, 556, 12]], 61);
   Ink.lantern(s, 70, 430, 1.25);
   if (key === 'winter') E(s, 'path', { d: blob(70, 412, 20, 8, 970, .2, 8), fill: '#fdfcf8', opacity: .95, filter: 'url(#brushF)' });
@@ -471,7 +471,7 @@ function shoreArt(S, key) {
   return s;
 }
 
-// Cành chính + cành con dùng chung cho vẽ cây và cho vị trí từng lá/hoa: lá có cuống bám đúng cành.
+// Main branches + twigs shared by tree drawing and per-leaf/flower placement: leaf stems attach exactly to branches.
 const BRANCHES = {
   spring: [[[[1000, -10], [880, 30], [800, 44], [700, 100]], 22, 5], [[[860, 34], [840, 86], [812, 130], [780, 170]], 10, 2.5], [[[790, 48], [760, 30], [720, 24], [680, 36]], 7, 2], [[[940, 0], [930, 60], [946, 120], [960, 170]], 10, 3]],
   autumn: [[[[1000, -10], [880, 34], [796, 50], [690, 110]], 22, 5], [[[860, 38], [836, 90], [808, 136], [770, 176]], 10, 2.5], [[[786, 52], [756, 32], [716, 26], [674, 40]], 7, 2], [[[944, 0], [932, 64], [946, 124], [960, 176]], 10, 3]],
@@ -504,7 +504,7 @@ function treeArt(S, key) {
   const s = newSVG(), { E, G, R } = Ink, r = R(31);
   const B = (c, w0, w1, col = '#191512') => Ink.branch(s, c, w0, w1, col, key === 'winter');
   if (key === 'summer') {
-    // thông già: cành ngang, cụm lá kim
+    // old pine: horizontal branches, needle clusters
     B([[1000, -20], [880, 36], [784, 56], [676, 124]], 26, 6, '#141414');
     B([[864, 40], [836, 92], [804, 140], [768, 184]], 12, 3, '#141414');
     B([[956, 4], [924, 76], [932, 140], [944, 192]], 12, 4, '#141414');
@@ -514,13 +514,13 @@ function treeArt(S, key) {
   } else if (key === 'spring') {
     for (const [c, w0, w1] of BRANCHES.spring) B(c, w0, w1, '#2a1d18');
     for (const tw of twigPlan('spring')) B(tw.c, tw.w0, tw.w1, '#2a1d18');
-    // nụ hồng ở đầu cành con
+    // pink buds at the twig tips
     for (const tw of twigPlan('spring')) { const p = tw.c[3]; E(s, 'circle', { cx: Ink.f(p[0] + (r() - .5) * 4), cy: Ink.f(p[1] + (r() - .5) * 4), r: Ink.f(1.6 + r() * 1.4), fill: '#d9708c', opacity: .9 }); }
   } else if (key === 'autumn') {
     for (const [c, w0, w1] of BRANCHES.autumn) B(c, w0, w1, '#2a1d14');
     for (const tw of twigPlan('autumn')) B(tw.c, tw.w0, tw.w1, '#3a2418');
   } else {
-    // mai đông: cành trơ phủ tuyết, vài bông mai đỏ
+    // winter plum: bare snow-covered branches, a few red plum blossoms
     B([[1000, -10], [880, 30], [808, 40], [700, 96]], 22, 5, '#161616');
     B([[866, 32], [846, 84], [820, 128], [790, 168]], 10, 2.5, '#161616');
     B([[796, 44], [770, 22], [736, 16], [700, 26]], 7, 2, '#161616');
@@ -532,10 +532,10 @@ function treeArt(S, key) {
 }
 
 
-// ---------- Hoa sen vẽ chi tiết ----------
-// Lá sen nhìn từ trên, vẽ kiểu màu nước + mực: mảng xanh xám loang, mép đọng màu đậm (wet edge), mép gợn sóng
-// không tròn đều, khe chẻ hẹp từ tâm, gân mảnh toả ra rẽ đôi gần mép, một đoạn mép cong lên bắt sáng,
-// viền mực đứt quãng; lá thu ngả vàng có đốm nâu.
+// ---------- Detailed lotus ----------
+// Lotus leaf seen from above, watercolor + ink style: blotchy grey-green wash, dark pooled edge (wet edge), wavy rim
+// not perfectly round, narrow slit from the center, fine veins radiating and forking near the rim, a curled-up rim section catching light,
+// broken ink outline; autumn leaves turn yellow with brown spots.
 function lotusLeafArt(s, cx, cy, R, rotDeg, autumn, seed) {
   const { E, G, R: Rng, f } = Ink, r = Rng(seed), rot = rotDeg * Math.PI / 180, id = 'll' + seed;
   const sq = .9 + r() * .1, notch = .018 + r() * .012, N = 110;
@@ -551,21 +551,21 @@ function lotusLeafArt(s, cx, cy, R, rotDeg, autumn, seed) {
   const cp = E(defs, 'clipPath', { id: id + 'c' }); E(cp, 'path', { d });
   const g = E(defs, 'radialGradient', { id, cx: .5, cy: .5, r: .55 });
   E(g, 'stop', { offset: 0, 'stop-color': pal[0] }); E(g, 'stop', { offset: .6, 'stop-color': pal[1] }); E(g, 'stop', { offset: 1, 'stop-color': pal[2] });
-  // bóng lá trên mặt nước
+  // leaf shadow on the water
   E(s, 'path', { d, fill: '#1a2018', opacity: .22, filter: 'url(#blurM)', transform: 'translate(2.5,3.5)' });
   E(s, 'path', { d, fill: `url(#${id})`, opacity: .93 });
   const L = G(s, { 'clip-path': `url(#${id}c)` });
-  // loang màu: mảng đậm nhạt chồng nhau như màu nước còn ướt
+  // color blooms: dark and light patches overlapping like wet watercolor
   const wash = G(L, { filter: 'url(#bleed)' });
   for (let i = 0; i < 9; i++) { const a = r() * TAU, k = .2 + r() * .7, q = P(a, k); E(wash, 'ellipse', { cx: f(q[0]), cy: f(q[1]), rx: f(R * (.16 + r() * .22)), ry: f(R * (.1 + r() * .16)), fill: r() < .55 ? pal[2] : pal[0], opacity: .3 + r() * .2 }); }
   E(L, 'rect', { x: f(cx - R * 1.2), y: f(cy - R * 1.2), width: f(R * 2.4), height: f(R * 2.4), filter: 'url(#stain)', opacity: .55 });
   E(L, 'rect', { x: f(cx - R * 1.2), y: f(cy - R * 1.2), width: f(R * 2.4), height: f(R * 2.4), filter: 'url(#paperTex)', opacity: .5 });
-  // tâm lá sáng hơn
+  // leaf center lighter
   E(L, 'circle', { cx: f(c[0]), cy: f(c[1]), r: f(R * .3), fill: pal[0], opacity: .35, filter: 'url(#blurM)' });
-  // mép đọng màu (wet edge): nét đậm dọc mép, nhoè vào trong
+  // pooled edge (wet edge): dark stroke along the rim, bleeding inward
   E(L, 'path', { d, fill: 'none', stroke: pal[2], 'stroke-width': f(R * .16), opacity: .5, filter: 'url(#blurS)' });
   E(L, 'path', { d, fill: 'none', stroke: pal[3], 'stroke-width': f(R * .05), opacity: .35, filter: 'url(#blurS)' });
-  // gân: mảnh, hơi cong, rẽ đôi ở 2/3 bán kính, nhạt dần ra mép
+  // veins: fine, slightly curved, forking at 2/3 radius, fading toward the rim
   const vg = G(L, { stroke: pal[4], fill: 'none', 'stroke-linecap': 'round' });
   const nv = 17 + Math.floor(r() * 5);
   for (let i = 0; i < nv; i++) {
@@ -576,18 +576,18 @@ function lotusLeafArt(s, cx, cy, R, rotDeg, autumn, seed) {
   }
   E(L, 'circle', { cx: f(c[0]), cy: f(c[1]), r: f(R * .05), fill: pal[4], opacity: .75 });
   E(L, 'circle', { cx: f(c[0]), cy: f(c[1]), r: f(R * .022), fill: pal[2], opacity: .7 });
-  // lá già/lá thu: đốm cháy nâu loang từ mép
+  // old/autumn leaf: brown burn spots spreading from the rim
   const spots = autumn ? 2 + Math.floor(r() * 3) : (r() < .35 ? 1 : 0);
   for (let i = 0; i < spots; i++) { const a = r() * TAU, q = P(a, .75 + r() * .3); E(L, 'ellipse', { cx: f(q[0]), cy: f(q[1]), rx: f(R * (.08 + r() * .12)), ry: f(R * (.06 + r() * .08)), fill: autumn ? '#5a3a18' : '#7a6a34', opacity: .45, filter: 'url(#bleed)' }); }
-  // mép cong lên bắt sáng + bóng mảnh phía trong
+  // curled-up rim catching light + thin shadow inside
   const a0 = notch + .5 + r() * 4, arc = [], arcIn = [];
   for (let i = 0; i <= 14; i++) { const a = a0 + i / 14 * (.9 + r() * .2); arc.push(P(a, .97 * edgeK(a))); arcIn.push(P(a, .9 * edgeK(a))); }
   E(L, 'path', { d: 'M' + arcIn.map(p => f(p[0]) + ',' + f(p[1])).join('L'), fill: 'none', stroke: pal[3], 'stroke-width': 1.2, opacity: .3, filter: 'url(#blurS)' });
   E(L, 'path', { d: 'M' + arc.map(p => f(p[0]) + ',' + f(p[1])).join('L'), fill: 'none', stroke: pal[4], 'stroke-width': 2.6, opacity: .5, 'stroke-linecap': 'round' });
-  // viền mực đứt quãng, đậm nhạt không đều
+  // broken ink outline, uneven darkness
   const dash = Array.from({ length: 8 }, () => f(8 + r() * 30) + ' ' + f(1 + r() * 6)).join(' ');
   E(s, 'path', { d, fill: 'none', stroke: pal[3], 'stroke-width': .9, opacity: .7, 'stroke-dasharray': dash, filter: 'url(#brushF)' });
-  // giọt nước đọng: vài giọt nhỏ
+  // water droplets: a few small beads
   if (!autumn) for (let i = 0; i < Math.floor(r() * 3); i++) {
     const q = P(r() * TAU, .2 + r() * .45), dr = 1.2 + r() * 1.6;
     E(s, 'circle', { cx: f(q[0] + .5), cy: f(q[1] + .7), r: f(dr), fill: pal[3], opacity: .25 });
@@ -595,9 +595,9 @@ function lotusLeafArt(s, cx, cy, R, rotDeg, autumn, seed) {
     E(s, 'circle', { cx: f(q[0] - dr * .35), cy: f(q[1] - dr * .35), r: f(dr * .3), fill: '#fff', opacity: .9 });
   }
 }
-// Hoa sen nhìn từ trên (hơi nghiêng): 3 vòng cánh, cánh ngoài xoè rộng, cánh trong khum đứng nên ngắn và chồng lên nhau;
-// mỗi cánh trắng ở gốc chuyển hồng ở đầu, gân mảnh song song, viền mực hồng mảnh; giữa là đài sen xanh vàng có lỗ hạt,
-// vòng nhị vàng. Bóng hoa đổ xa vì hoa vươn cao khỏi mặt nước.
+// Lotus flower seen from above (slightly tilted): 3 rings of petals, outer petals spread wide, inner petals cupped upright so shorter and overlapping;
+// each petal white at the base turning pink at the tip, fine parallel veins, thin pink ink outline; in the middle a yellow-green seed pod with seed holes,
+// a ring of yellow stamens. The flower's shadow falls far because it rises high above the water.
 function lotusFlowerArt(s, cx, cy, R, seed) {
   const { E, G, R: Rng, f } = Ink, r = Rng(seed), id = 'lf' + seed;
   const defs = E(s, 'defs');
@@ -610,21 +610,21 @@ function lotusFlowerArt(s, cx, cy, R, seed) {
   E(tilt, 'circle', { cx: 5, cy: 7, r: f(R * .95), fill: '#1a2018', opacity: .2, filter: 'url(#blurM)' });
   const layers = [[7, R, R * .5, 0, 0], [6, R * .78, R * .44, .5, .08], [5, R * .52, R * .36, .2, .16]];
   layers.forEach(([n, len, wid, off, cup], li) => {
-    // bóng mềm của vòng cánh trong đổ xuống vòng ngoài
+    // soft shadow of the inner petal ring cast onto the outer ring
     if (li) E(tilt, 'circle', { r: f(len * .9), fill: '#7a3048', opacity: .2, filter: 'url(#blurM)' });
     for (let i = 0; i < n; i++) {
       const a = (i + off + (r() - .5) * .3) / n * 360, L2 = len * (.88 + r() * .2), W2 = wid * (.9 + r() * .2);
       const g = G(tilt, { transform: `rotate(${f(a)})` });
       E(g, 'path', { d: petal(L2, W2, cup), fill: `url(#${id}${li})`, opacity: .97 });
-      E(g, 'ellipse', { cx: 0, cy: f(-L2 * .82), rx: f(W2 * .45), ry: f(L2 * .18), fill: '#d0577f', opacity: .16, filter: 'url(#blurS)' });   // đầu cánh đậm màu
+      E(g, 'ellipse', { cx: 0, cy: f(-L2 * .82), rx: f(W2 * .45), ry: f(L2 * .18), fill: '#d0577f', opacity: .16, filter: 'url(#blurS)' });   // petal tip deeper in color
       const vg = G(g, { stroke: '#c76a8c', 'stroke-width': .3, fill: 'none', opacity: .4 });
       for (const k of [-.55, -.25, 0, .25, .55]) E(vg, 'path', { d: `M${f(W2 * k * .2)},${f(-L2 * .08)} Q${f(W2 * k * .95)},${f(-L2 * .5)} ${f(W2 * k * .35)},${f(-L2 * .9)}` });
       E(g, 'path', { d: petal(L2, W2, cup), fill: 'none', stroke: '#a3405f', 'stroke-width': .4, opacity: .45, filter: 'url(#brushF)' });
     }
   });
-  // nhị: sợi vàng + bao phấn
+  // stamens: yellow filaments + anthers
   for (let i = 0; i < 34; i++) { const a = i / 34 * TAU + (r() - .5) * .1, r1 = R * .17, r2 = R * (.27 + r() * .07); E(tilt, 'line', { x1: f(Math.cos(a) * r1), y1: f(Math.sin(a) * r1), x2: f(Math.cos(a) * r2), y2: f(Math.sin(a) * r2), stroke: '#e9c44e', 'stroke-width': .55 }); E(tilt, 'circle', { cx: f(Math.cos(a) * r2), cy: f(Math.sin(a) * r2), r: .7, fill: '#d59a26' }); }
-  // đài sen
+  // seed pod
   E(tilt, 'circle', { r: f(R * .19), fill: '#cdd27a', stroke: '#7d8a3a', 'stroke-width': .6 });
   E(tilt, 'circle', { cx: f(-R * .04), cy: f(-R * .05), r: f(R * .1), fill: '#e4e6a4', opacity: .7, filter: 'url(#blurS)' });
   for (let i = 0; i < 8; i++) { const a = i / 7 * TAU, rr = i ? R * .11 : 0; E(tilt, 'circle', { cx: f(Math.cos(a) * rr), cy: f(Math.sin(a) * rr), r: f(R * .03), fill: '#6f7a2c', opacity: .85 }); }
@@ -639,17 +639,17 @@ function lotusBudArt(s, cx, cy) {
   E(s, 'path', { d: `M${cx - 7},${cy + 9} Q${cx},${cy + 3} ${cx + 7},${cy + 9}`, fill: 'none', stroke: '#5c7046', 'stroke-width': 2.4, 'stroke-linecap': 'round' });
 }
 
-// Lá phong Nhật (Acer palmatum) nhìn từ trên: 7 thuỳ xẻ sâu hình mũi mác, mép răng cưa kép, chóp nhọn dài;
-// màu loang từ cam vàng ở gốc sang đỏ ở chóp, mép đọng màu đậm, gân chính toả từ cuống, gân phụ mảnh,
-// viền mực mảnh đứt quãng. Cuống cong nhẹ, đầu cuống giữ đúng (x, y + r*.553) để khớp STEM.autumn.
+// Japanese maple leaf (Acer palmatum) seen from above: 7 deeply cut lanceolate lobes, doubly serrated edge, long pointed tips;
+// color blending from orange-yellow at the base to red at the tips, dark pooled edge, main veins radiating from the stem, fine secondary veins,
+// thin broken ink outline. Stem slightly curved, stem end kept at (x, y + r*.553) to match STEM.autumn.
 function mapleArt(s, x, y, r, col, seed) {
   const { E, G, R: Rng, f } = Ink, rr = Rng(seed), id = 'mp' + seed;
   const mix = (a, b, t) => { const pa = [1, 3, 5].map(i => parseInt(a.substr(i, 2), 16)), pb = [1, 3, 5].map(i => parseInt(b.substr(i, 2), 16)); return '#' + pa.map((v, i) => Math.round(v + (pb[i] - v) * t).toString(16).padStart(2, '0')).join(''); };
   const light = mix(col, '#f0c050', .55), dark = mix(col, '#3a0e08', .45), ink = mix(col, '#1a0804', .75);
-  // [góc lệch so với trục trên (độ), chiều dài tương đối, bề rộng tương đối]
+  // [angle offset from the up axis (deg), relative length, relative width]
   const lobes = [[0, 1, .19], [-42, .95, .185], [42, .95, .185], [-84, .78, .17], [84, .78, .17], [-124, .46, .14], [124, .46, .14]]
     .map(([a, l, w]) => [a + (rr() - .5) * 8, l * (.92 + rr() * .14), w * (.9 + rr() * .2)]).sort((p, q) => p[0] - q[0]);
-  const rs = r * .16, pts = [], tips = [], gapT = Math.tan(19 * Math.PI / 180);   // thuỳ kề nhau cách ~40°: bề rộng gần gốc không vượt nửa khe -> không chồng
+  const rs = r * .16, pts = [], tips = [], gapT = Math.tan(19 * Math.PI / 180);   // adjacent lobes ~40° apart: width near the base never exceeds half the gap -> no overlap
   const P = (ang, along, side) => { const u = (ang - 90) * Math.PI / 180; return [x + Math.cos(u) * along - Math.sin(u) * side, y + Math.sin(u) * along + Math.cos(u) * side]; };
   for (const [ang, l, w] of lobes) {
     const L = r * l, W = r * w, n = 16, edge = [];
@@ -658,7 +658,7 @@ function mapleArt(s, x, y, r, col, seed) {
       const t = i / n, tooth = t > .3 && t < .96 ? (i % 2 ? .13 : -.05) * W * (1 - t * .4) : 0;
       edge.push([t, width(t) + tooth]);
     }
-    // mép trái từ gốc lên chóp, rồi mép phải từ chóp xuống gốc
+    // left edge from base up to tip, then right edge from tip down to base
     for (const [t, wv] of edge) pts.push(P(ang, rs + t * (L - rs), -wv));
     tips.push([ang, L]);
     for (let i = edge.length - 2; i >= 0; i--) { const [t, wv] = edge[i]; pts.push(P(ang, rs + t * (L - rs), wv)); }
@@ -668,18 +668,18 @@ function mapleArt(s, x, y, r, col, seed) {
   const cp = E(defs, 'clipPath', { id: id + 'c' }); E(cp, 'path', { d });
   const g = E(defs, 'radialGradient', { id, cx: f(x), cy: f(y), r: f(r), gradientUnits: 'userSpaceOnUse' });
   E(g, 'stop', { offset: 0, 'stop-color': light }); E(g, 'stop', { offset: .45, 'stop-color': col }); E(g, 'stop', { offset: 1, 'stop-color': dark });
-  // cuống: cong nhẹ, gốc to dần
+  // stem: slightly curved, thickening toward the base
   const sx = x + (rr() - .5) * r * .12, ey = y + r * .553;
   E(s, 'path', { d: `M${f(x)},${f(y + r * .05)} Q${f(sx + r * .06)},${f(y + r * .3)} ${f(x)},${f(ey)}`, fill: 'none', stroke: ink, 'stroke-width': f(r * .07), 'stroke-linecap': 'round', opacity: .9 });
   E(s, 'path', { d, fill: `url(#${id})`, opacity: .95 });
   const Lg = G(s, { 'clip-path': `url(#${id}c)` });
-  // loang màu nước
+  // watercolor blooms
   const wash = G(Lg, { filter: 'url(#blurS)' });
   for (let i = 0; i < 7; i++) { const [ang, L] = tips[Math.floor(rr() * tips.length)], q = P(ang, L * (.3 + rr() * .6), (rr() - .5) * r * .2); E(wash, 'circle', { cx: f(q[0]), cy: f(q[1]), r: f(r * (.08 + rr() * .12)), fill: rr() < .5 ? dark : light, opacity: .25 + rr() * .2 }); }
   E(Lg, 'rect', { x: f(x - r * 1.2), y: f(y - r * 1.2), width: f(r * 2.4), height: f(r * 2.4), filter: 'url(#paperTex)', opacity: .35 });
-  // mép đọng màu
+  // pooled edge
   E(Lg, 'path', { d, fill: 'none', stroke: dark, 'stroke-width': f(r * .12), opacity: .45, filter: 'url(#blurS)' });
-  // gân chính + gân phụ
+  // main veins + secondary veins
   const vg = G(Lg, { stroke: ink, fill: 'none', 'stroke-linecap': 'round' });
   for (const [ang, L] of tips) {
     const m = P(ang, L * .5, (rr() - .5) * r * .03), e = P(ang, L * .93, 0);
@@ -690,16 +690,16 @@ function mapleArt(s, x, y, r, col, seed) {
     }
   }
   E(Lg, 'circle', { cx: f(x), cy: f(y), r: f(r * .06), fill: ink, opacity: .5 });
-  // viền mực mảnh đứt quãng
+  // thin broken ink outline
   const dash = Array.from({ length: 6 }, () => f(r * (.6 + rr() * 2)) + ' ' + f(r * (.05 + rr() * .25))).join(' ');
   E(s, 'path', { d, fill: 'none', stroke: ink, 'stroke-width': f(r * .028), opacity: .75, 'stroke-dasharray': dash, 'stroke-linejoin': 'round' });
 }
 
-// Hoa anh đào nhìn từ trên: 5 cánh hình trứng ngược, đầu cánh có khía chẻ nhỏ đặc trưng; cánh trắng hồng nhạt ở mép,
-// đậm dần về gốc, gân mảnh toả từ gốc; giữa hoa đỏ sẫm, chùm nhị mảnh đầu vàng nâu, một nhuỵ ở tâm.
-// Cánh hơi lệch góc và to nhỏ khác nhau, mép viền mực hồng mảnh.
+// Cherry blossom seen from above: 5 obovate petals, each tip with the characteristic small notch; petals white, pale pink at the edge,
+// deepening toward the base, fine veins radiating from the base; deep red center, a tuft of thin stamens with yellow-brown tips, one pistil in the middle.
+// Petals slightly offset in angle and varied in size, thin pink ink outline.
 function sakuraPetalD(L, W, notch) {
-  // gốc ở (0,0), đầu cánh ở (0,-L); khía chẻ sâu notch*L ở giữa đầu cánh
+  // base at (0,0), petal tip at (0,-L); notch of depth notch*L in the middle of the tip
   const { f } = Ink, n = L * notch, w = W / 2;
   return `M0,0 C${f(w * .55)},${f(-L * .12)} ${f(w * 1.05)},${f(-L * .55)} ${f(w * .78)},${f(-L * .9)} ` +
     `Q${f(w * .5)},${f(-L * 1.04)} ${f(w * .12)},${f(-L * .97)} L0,${f(-L + n)} L${f(-w * .12)},${f(-L * .97)} ` +
@@ -710,18 +710,18 @@ function sakuraArt(s, x, y, r, seed, col = '#f7d6de', rot = 0) {
   const defs = E(s, 'defs'), gr = E(defs, 'radialGradient', { id, cx: 0, cy: 0, r: r, gradientUnits: 'userSpaceOnUse' });
   E(gr, 'stop', { offset: 0, 'stop-color': '#d9587e' }); E(gr, 'stop', { offset: .28, 'stop-color': '#efa2b8' }); E(gr, 'stop', { offset: .6, 'stop-color': col }); E(gr, 'stop', { offset: 1, 'stop-color': '#fdf3f5' });
   const g = G(s, { transform: `translate(${f(x)},${f(y)}) rotate(${f(rot)})` });
-  E(g, 'circle', { cx: .6, cy: .9, r: f(r * .95), fill: '#3a1a22', opacity: .14, filter: 'url(#blurS)' });   // bóng mềm
+  E(g, 'circle', { cx: .6, cy: .9, r: f(r * .95), fill: '#3a1a22', opacity: .14, filter: 'url(#blurS)' });   // soft shadow
   const a0 = rr() * 72;
   for (let i = 0; i < 5; i++) {
     const a = a0 + i * 72 + (rr() - .5) * 10, L = r * (1.02 + rr() * .14), W = r * (.82 + rr() * .12);
     const pg = G(g, { transform: `rotate(${f(a)})` }), d = sakuraPetalD(L, W, .13 + rr() * .05);
     E(pg, 'path', { d, fill: `url(#${id})`, opacity: .97 });
-    // gân mảnh từ gốc toả ra
+    // fine veins radiating from the base
     const vg = G(pg, { stroke: '#d9708e', 'stroke-width': f(r * .018), fill: 'none', opacity: .45 });
     for (const k of [-.55, -.28, 0, .28, .55]) E(vg, 'path', { d: `M0,${f(-L * .08)} Q${f(W * k * .45)},${f(-L * .5)} ${f(W * k * .38)},${f(-L * .86)}` });
     E(pg, 'path', { d, fill: 'none', stroke: '#b4566e', 'stroke-width': f(r * .025), opacity: .55, 'stroke-linejoin': 'round' });
   }
-  // tâm hoa đỏ sẫm + chùm nhị + nhuỵ
+  // deep red center + stamen tuft + pistil
   E(g, 'circle', { r: f(r * .2), fill: '#a8243e', opacity: .85, filter: 'url(#blurS)' });
   const n = 16 + Math.floor(rr() * 6);
   for (let i = 0; i < n; i++) {
@@ -731,7 +731,7 @@ function sakuraArt(s, x, y, r, seed, col = '#f7d6de', rot = 0) {
   }
   E(g, 'circle', { r: f(r * .05), fill: '#c8d88a', stroke: '#6a7a3a', 'stroke-width': f(r * .01) });
 }
-// cánh rơi: một cánh lẻ có khía, đậm ở gốc, gân mảnh, hơi cong (lật nghiêng)
+// falling petal: a single notched petal, darker at the base, fine veins, slightly curved (tilted over)
 function sakuraPetalArt(s, x, y, s0, rot, col, seed) {
   const { E, G, f } = Ink, id = 'skp' + seed, L = 7 * s0, W = 5.6 * s0;
   const defs = E(s, 'defs'), gr = E(defs, 'linearGradient', { id, x1: 0, y1: 1, x2: 0, y2: 0 });
@@ -752,7 +752,7 @@ async function spriteSet(key) {
     out.lotus = await Promise.all([0, 1, 2, 3].map(i => raster(spriteSVG(100, 100, s => lotusLeafArt(s, 50, 50, 44, i * 95 + 20, key === 'autumn', 900 + i)))));
   }
   if (SEASONS[key].flowers) {
-    out.flower = await Promise.all([0, 1].map(i => raster(spriteSVG(130, 130, s => { lotusLeafArt(s, 65, 65, 46, 40 + i * 140, false, 950 + i); lotusFlowerArt(s, 65, 64, 28, 960 + i); }))));   // hoa vươn lên giữa lá
+    out.flower = await Promise.all([0, 1].map(i => raster(spriteSVG(130, 130, s => { lotusLeafArt(s, 65, 65, 46, 40 + i * 140, false, 950 + i); lotusFlowerArt(s, 65, 64, 28, 960 + i); }))));   // flower rises from the middle of the leaf
     out.bud = [await raster(spriteSVG(60, 60, s => lotusBudArt(s, 30, 30)))];
   }
   if (key === 'spring') out.fall = await Promise.all([0, 1].map(i => raster(spriteSVG(20, 20, s => sakuraPetalArt(s, 10, 10, 1.7, i * 40, i ? '#f6c9d4' : '#f2b8c6', 70 + i), 4))));
@@ -791,8 +791,8 @@ function drawCalligraphy(c, S) {
 }
 
 // ======================================================================
-// Scene: lớp dưới nước (đáy + cá) render vào RT, lớp mặt nước xử lý bằng shader sóng,
-// rồi các lớp trên mặt nước (bờ, vật trôi, cây, vật rơi) vẽ chồng lên.
+// Scene: underwater layer (bottom + fish) renders into an RT, the water surface layer is processed by a wave shader,
+// then the above-water layers (shore, floating objects, tree, falling objects) are drawn on top.
 // ======================================================================
 const waterScene = new THREE.Scene(), overScene = new THREE.Scene();
 const hemi = new THREE.HemisphereLight('#fffaf0', '#8a8370', .95); waterScene.add(hemi);
@@ -843,11 +843,11 @@ const NODE_Q = srcMesh.parent.quaternion.clone();
 
 const SWIM_PARS = /* glsl */ `
   uniform float uPhase, uAmp, uTurn, uWave, uFinL, uFinR;
-  // Sống lưng: 9 điểm (toạ độ mesh) cách đều theo chiều dài thân, lấy từ vệt bơi -> thân bám theo đường đi.
+  // Spine: 9 points (mesh coords) evenly spaced along the body length, taken from the swim trail -> body follows the path.
   uniform float uSX[9], uSZ[9];
   vec2 spineP(int i) { return vec2(uSX[i], uSZ[i]); }
-  vec2 spineT(int i) { return normalize(spineP(i) - spineP(i + 1) + vec2(1e-5, 0.0)); }   // hướng về phía đầu
-  // điểm + tiếp tuyến trên sống lưng tại s (0 = mõm, 1 = chóp đuôi); quá đuôi thì kéo dài theo tiếp tuyến cuối
+  vec2 spineT(int i) { return normalize(spineP(i) - spineP(i + 1) + vec2(1e-5, 0.0)); }   // pointing toward the head
+  // point + tangent on the spine at s (0 = snout, 1 = tail tip); past the tail, extend along the last tangent
   void spineAt(float s, out vec2 P, out vec2 T) {
     float sc = clamp(s, 0.0, 1.0), f = sc * 8.0; int i = int(min(floor(f), 7.0)); float t = f - float(i);
     vec2 t0 = spineT(max(i - 1, 0)), t1 = spineT(i), t2 = spineT(min(i + 1, 7));
@@ -860,60 +860,64 @@ const SWIM_PARS = /* glsl */ `
   float swimZ(float x) { return waveZ(swimS(x)); }
   float swimSlope(float x) { return (swimZ(x - 0.04) - swimZ(x + 0.04)) / -0.08; }
 `;
-// Toạ độ mesh: đầu +x (2.87), đuôi -x (-3.52), lưng +y, hai sườn ±z.
-// Vây được nhận ra theo vị trí: đuôi x < -2.3, vây lưng y > .62, vây ngực |z| > .72 phía dưới, vây bụng y < -.85.
-// Theo động học bơi kiểu carangiform của cá chép/koi:
-//  - vây đuôi mềm, mép sau trễ pha so với cuống đuôi, hai thùy khum nhẹ;
-//  - vây lưng dựng, chỉ rung thụ động rất nhẹ theo thân;
-//  - vây ngực xếp sát thân khi bơi nhanh, xoè ra và chèo khi chậm/phanh; khi rẽ thì vây phía trong xoè làm phanh.
+// Mesh coords: head +x (2.87), tail -x (-3.52), back +y, flanks ±z.
+// Fins are identified by position: tail x < -2.3, dorsal fin y > .62, pectoral fins |z| > .72 underneath, pelvic fins y < -.85.
+// Following the carangiform swimming kinematics of carp/koi:
+//  - soft tail fin, trailing edge lags in phase behind the caudal peduncle, both lobes slightly cupped;
+//  - dorsal fin upright, only flutters passively and very slightly with the body;
+//  - pectoral fins fold against the body when swimming fast, spread and paddle when slow/braking; when turning the inner fin spreads to brake.
 const FIN_POS = /* glsl */ `
   vKoiPos = position;
   {
     vec3 p0 = position;
     float tr = smoothstep(-2.4, -3.5, p0.x), ty = p0.y + .2;
-    // Đuôi model là vây dựng đứng, hai thuỳ lệch (trên dài chĩa sau, dưới ngắn chĩa xuống). Xoay phiến đuôi nằm ngang
-    // bằng toạ độ cực quanh cuống, đưa góc mở hai thuỳ về đối xứng (~±32°) và kéo dài thuỳ dưới -> quạt chẻ đôi cân đối.
-    // Đuôi nở ra khi quét ngang mạnh nhất (vận tốc ngang của đuôi ~ cos của sóng tại đuôi).
+    // The model's tail is an upright fin with asymmetric lobes (upper long pointing back, lower short pointing down). Rotate the tail blade flat
+    // using polar coords around the peduncle, make the two lobes' opening angles symmetric (~±32°) and lengthen the lower lobe -> balanced forked fan.
+    // The tail spreads when sweeping sideways hardest (lateral tail velocity ~ cos of the wave at the tail).
     float sweep = abs(cos(uPhase - uWave * .95));
     {
       float L = max(0.0, -p0.x - 2.4), th = atan(ty, L + 1e-4), r = length(vec2(L, ty));
-      float th2 = th * (th > 0.0 ? .8 : .54) * (1.0 + .18 * sweep);
-      float r2 = r * (th < 0.0 ? 1.0 + .3 * smoothstep(0.0, .6, -th) : 1.0) * (1.1 + .06 * sweep);
+      // the model's lobes leave a wide V between them (upper 27..61° from the axis, lower 56..87°): pull both inner
+      // edges in to ±6° and the outer edges to ±38° -> one full fan with a shallow fork; lower lobe stretched to the upper's length
+      float tl = -th;
+      float th2 = (th > 0.0 ? (th < .473 ? th * .221 : .1047 + (th - .473) * .955)
+                            : -(tl < .972 ? tl * .108 : .1047 + (tl - .972) * 1.019)) * (1.0 + .18 * sweep);
+      float r2 = r * (th < 0.0 ? 1.0 + .24 * smoothstep(0.0, .6, tl) : 1.0) * (1.1 + .06 * sweep);
       transformed.xz = mix(transformed.xz, vec2(-2.4 - cos(th2) * r2, sin(th2) * r2), tr);
     }
-    // Đuôi mềm nhưng KHỚP thân: phần uốn thêm dùng đúng sóng của thân tại vị trí đó, chỉ trễ pha tăng dần
-    // ra mép đuôi và mép thuỳ -> đuôi là đoạn nối tiếp của sóng, không đánh lệch nhịp.
+    // Soft tail but JOINED to the body: the extra bend uses exactly the body's wave at that position, only the phase lag grows
+    // toward the tail edge and lobe edges -> the tail continues the wave, never out of rhythm.
     float sT = swimS(p0.x), lag = tr * 1.1 + abs(ty) * tr * .5;
     transformed.z += uAmp * tr * (.55 + .45 * abs(ty)) * sin(uPhase - sT * uWave - lag);
     float dm = smoothstep(.82, 1.05, p0.y) * smoothstep(.16, .08, abs(p0.z)) * smoothstep(-1.0, -.55, p0.x) * smoothstep(1.5, 1.0, p0.x);
-    // vây lưng của model có bề dày -> nhìn từ trên thành dải; ép mỏng + hạ thấp để chỉ còn đường mảnh dọc sống
+    // the model's dorsal fin has thickness -> seen from above it becomes a band; flatten + lower it to leave only a thin line along the spine
     float dq = smoothstep(.72, .9, p0.y) * smoothstep(.22, .1, abs(p0.z)) * step(-1.1, p0.x) * step(p0.x, 1.6);
     transformed.z = mix(transformed.z, transformed.z * .18, dq) + (p0.y - .62) * dm * .04 * sin(uPhase - 2.8 - p0.x);
     transformed.y = mix(transformed.y, .76 + (p0.y - .76) * .35, dq);
     float pm = smoothstep(.7, .88, abs(p0.z)) * smoothstep(.35, .6, p0.x) * smoothstep(1.25, 1.0, p0.x) * step(p0.y, -.3);
-    // vây ngực gốc chỉ là vài tam giác: thu về gốc (ẩn), vây quạt tròn được gắn riêng ở JS
-    // mask cứng: đỉnh nào của vây gốc cũng thu hẳn vào một điểm trong thân (mask mềm để lại gai)
+    // original pectoral fins are just a few triangles: collapse to the root (hidden), round fan fins are attached separately in JS
+    // hard mask: every vertex of the original fin collapses fully to one point inside the body (a soft mask leaves spikes)
     float pmHard = step(.62, abs(p0.z)) * step(.25, p0.x) * step(p0.x, 1.6) * step(p0.y, -.2);
     transformed = mix(transformed, vec3(.95, -.4, sign(p0.z) * .4), pmHard);
     float vm = smoothstep(-.82, -.95, p0.y) * step(-.75, p0.x) * step(p0.x, .15);
-    // vây bụng: nhìn từ trên chỉ lòi ra thành gai -> thu vào dưới bụng
+    // pelvic fins: seen from above they only poke out as spikes -> tuck under the belly
     float vmHard = max(step(p0.y, -.8) * step(-.8, p0.x) * step(p0.x, .2) * step(.3, abs(p0.z)),
                        step(p0.y, -.6) * step(-.1, p0.x) * step(p0.x, .4) * step(.45, abs(p0.z)));
     transformed = mix(transformed, vec3(p0.x, -.75, sign(p0.z) * .25), vmHard);
-    // chốt chặn cuối: vùng mang/gốc vây không đỉnh nào được nhô ra ngoài mép thân
+    // final clamp: no vertex in the gill/fin-root area may stick out past the body edge
     float gill = step(.2, p0.x) * step(p0.x, 1.7) * step(p0.y, -.15);
     transformed.z = mix(transformed.z, sign(transformed.z) * min(abs(transformed.z), .56), gill);
-    // vùng bụng (vây bụng, vây hậu môn gốc): không đỉnh nào nhô khỏi mép thân, mép thon dần về đuôi
+    // belly area (pelvic fins, original anal fin): no vertex sticks out past the body edge, edge tapering toward the tail
     float belly = step(-2.5, p0.x) * step(p0.x, .5) * step(p0.y, -.3);
     float hwB = mix(.28, .5, clamp((p0.x + 2.4) / 2.9, 0.0, 1.0));
     transformed.z = mix(transformed.z, sign(transformed.z) * min(abs(transformed.z), hwB), belly);
   }
 `;
-// Đặt mỗi đỉnh lên sống lưng theo đúng vị trí dọc thân, lệch ra theo pháp tuyến: giữ nguyên chiều dài,
-// mặt cắt luôn vuông góc sống lưng -> cua gắt không méo. Sóng bơi cộng theo pháp tuyến.
+// Place each vertex on the spine at its exact position along the body, offset along the normal: preserves length,
+// cross-section always perpendicular to the spine -> sharp turns don't distort. Swim wave is added along the normal.
 const SWIM_POS = `{
   float s = (2.87 - transformed.x) / 6.39;
-  // từ cuống đuôi trở ra: dùng chung hệ trục tại cuống (đuôi như quạt gắn vào cuống) -> cua gắt đuôi không bị ép bẹp
+  // from the caudal peduncle back: share the frame at the peduncle (tail like a fan attached to it) -> sharp turns don't squash the tail
   float rig = smoothstep(.8, .88, s), sF = mix(s, min(s, .86), rig);
   vec2 P, T; spineAt(sF, P, T); P -= T * (s - sF) * 6.39;
   float a = atan(swimSlope(position.x)) * (1.0 - rig * .5); vec2 N = vec2(-T.y, T.x);
@@ -922,15 +926,15 @@ const SWIM_POS = `{
   transformed.x = q.x; transformed.z = q.y;
 }`;
 const SWIM_NRM = `{ vec2 P, T; float sN = (2.87 - position.x) / 6.39; spineAt(mix(sN, min(sN, .86), smoothstep(.8, .88, sN)), P, T); float a = atan(swimSlope(position.x)) + atan(T.y, T.x); objectNormal.xz = vec2(objectNormal.x * cos(a) - objectNormal.z * sin(a), objectNormal.x * sin(a) + objectNormal.z * cos(a)); }`;
-// Hoa văn vẽ bằng nhiễu 3D theo toạ độ thân + seed riêng: mỗi con một hoa văn, không phụ thuộc texture gốc.
-// Bảng màu giữ tông thủy mặc: đỏ son, trắng giấy, mực đen.
+// Pattern drawn with 3D noise over body coords + per-fish seed: each fish its own pattern, independent of the original texture.
+// Palette keeps ink-wash tones: vermilion, paper white, ink black.
 const PATTERN_GLSL = /* glsl */ `
   {
     vec3 c = diffuseColor.rgb, p = vKoiPos;
     float l = sqrt(max(dot(c, vec3(.2126, .7152, .0722)), 0.0));
-    float redT = smoothstep(.05, .22, c.r - max(c.g, c.b));                      // mảng đỏ vẽ sẵn trong texture
+    float redT = smoothstep(.05, .22, c.r - max(c.g, c.b));                      // red patches pre-painted in the texture
     vec3 q = vec3(p.x * .85, p.y * 1.3, p.z * 1.7) + uSeed;
-    // Mảng đỏ của mỗi con: lấy hình từ texture rồi nở/co/mất theo nhiễu riêng -> không con nào giống con nào
+    // Each fish's red patches: shape taken from the texture then grown/shrunk/removed by its own noise -> no two fish alike
     float red = smoothstep(.42, .58, redT + (fbm(q * 1.1) - .5) * 1.25 + uRedBias);
     float top = smoothstep(-.35, .3, p.y), s = clamp((2.87 - p.x) / 6.39, 0.0, 1.0), side = p.z / .62;
     float fin = max(max(smoothstep(-2.3, -2.6, p.x), smoothstep(.82, 1.05, p.y) * smoothstep(.16, .08, abs(p.z)) * smoothstep(-1.0, -.55, p.x) * smoothstep(1.5, 1.0, p.x)),
@@ -939,16 +943,16 @@ const PATTERN_GLSL = /* glsl */ `
     vec3 W = vec3(.83, .79, .70) * shade, VER = vec3(.62, .07, .025) * (.55 + .7 * l), BLK = vec3(.012, .012, .013) + .045 * l;
     #if KOI_VARIANT == 0      // Kohaku
       c = mix(W, VER, red);
-    #elif KOI_VARIANT == 1    // Taishō Sanke: Kohaku + chấm mực trên lưng
+    #elif KOI_VARIANT == 1    // Taishō Sanke: Kohaku + ink spots on the back
       c = mix(W, VER, red);
       c = mix(c, BLK, patchN(q + 4.0, 2.6, .68) * top * step(.16, s) * (1.0 - fin));
     #elif KOI_VARIANT == 2    // Shōwa
       c = mix(BLK, VER, red);
       c = mix(c, W, patchN(q + 9.0, 1.3, .62) * (1.0 - red));
-    #elif KOI_VARIANT == 3    // Asagi: lưng xanh chàm, sườn + vây cam
+    #elif KOI_VARIANT == 3    // Asagi: indigo back, orange flanks + fins
       c = mix(vec3(.75, .26, .06) * shade, vec3(.17, .25, .35) * shade * 1.2, top);
       c = mix(c, vec3(.75, .26, .06) * shade, fin * .8);
-    #elif KOI_VARIANT == 4    // Shūsui: Asagi nhạt + hàng vảy xanh đậm dọc sống
+    #elif KOI_VARIANT == 4    // Shūsui: pale Asagi + row of dark blue scales along the spine
       c = mix(vec3(.75, .26, .06) * shade, vec3(.4, .48, .56) * shade, top);
       c = mix(c, vec3(.08, .12, .2), smoothstep(.28, .18, abs(side)) * top * step(.12, s) * step(.5, fract(p.x * 4.5)));
     #elif KOI_VARIANT == 5    // Chagoi
@@ -959,24 +963,24 @@ const PATTERN_GLSL = /* glsl */ `
       c = vec3(.92, .91, .88) * shade;
     #elif KOI_VARIANT == 8    // Karasu
       c = BLK;
-    #elif KOI_VARIANT == 9    // Tanchō: chỉ một vòng đỏ tròn trên đầu
+    #elif KOI_VARIANT == 9    // Tanchō: only one round red spot on the head
       c = mix(W, VER, smoothstep(1.0, .9, length(vec2((s - .065) * 6.39, side * .62)) / .42) * top);
-    #elif KOI_VARIANT == 10   // Kumonryū: đen trắng như mây
+    #elif KOI_VARIANT == 10   // Kumonryū: black and white like clouds
       c = mix(W, BLK, patchN(q, 1.5, .5));
-    #elif KOI_VARIANT == 11   // Hi Utsuri: nền mực, đỏ lớn
+    #elif KOI_VARIANT == 11   // Hi Utsuri: ink base, large red
       c = mix(BLK, VER, smoothstep(.3, .5, redT + (fbm(q) - .5) + .1));
-    #else                     // Ochiba: xám xanh + mảng nâu
+    #else                     // Ochiba: blue-grey + brown patches
       c = mix(vec3(.32, .35, .38) * shade, vec3(.5, .3, .14) * shade, red);
     #endif
     c = mix(c, W * 1.06, fin * .35);
-    // vây lưng: không mang hoa văn thân -- màu vây trong mờ, gân tia mảnh, chỉ ánh nhẹ màu cá
+    // dorsal fin: no body pattern -- translucent fin color, thin ray lines, only a faint tint of the fish color
     float dor = smoothstep(.82, 1.05, p.y) * smoothstep(.16, .08, abs(p.z)) * smoothstep(-1.0, -.55, p.x) * smoothstep(1.5, 1.0, p.x);
     float dark = step(dot(c, vec3(.33)), .08) * step(.5, float(KOI_VARIANT == 2 || KOI_VARIANT == 8 || KOI_VARIANT == 11));
     vec3 finTone = mix(mix(vec3(.8, .78, .72), vec3(.2, .2, .21), dark), c, .15);
     float rays = .88 + .12 * sin((p.x + p.y * .35) * 46.0);
-    c = mix(c, c * .45 + finTone * .05, dor);                          // đường vây lưng sẫm hơn thân
+    c = mix(c, c * .45 + finTone * .05, dor);                          // dorsal fin line darker than the body
     diffuseColor.rgb = c;
-    diffuseColor.a *= 1.0 - fin * (.18 + .37 * finTip(p)) ;            // vây koi gần như trong suốt, mép trong hơn gốc
+    diffuseColor.a *= 1.0 - fin * (.18 + .37 * finTip(p)) ;            // koi fins nearly transparent, edge clearer than the base
   }
 `;
 const PATTERN_PARS = /* glsl */ `
@@ -989,7 +993,7 @@ const PATTERN_PARS = /* glsl */ `
                mix(mix(h3(i + vec3(0, 0, 1)), h3(i + vec3(1, 0, 1)), f.x), mix(h3(i + vec3(0, 1, 1)), h3(i + vec3(1, 1, 1)), f.x), f.y), f.z);
   }
   float fbm(vec3 p) { return .55 * n3(p) + .3 * n3(p * 2.03 + 7.1) + .15 * n3(p * 4.1 + 3.3); }
-  // mảng màu mép sắc nhưng hơi răng cưa, như mép vảy (kiwa)
+  // color patch edges sharp but slightly jagged, like scale edges (kiwa)
   float patchN(vec3 q, float sc, float th) { float n = fbm(q * sc) + .035 * n3(q * 18.0); return smoothstep(th - .02, th + .02, n); }
   float headCap(float s, float side) { return smoothstep(1.0, .85, length(vec2((s - .07) * 6.39, side * .62)) / .55); }
   float finTip(vec3 p) { return clamp(max(max((-p.x - 2.5) / .9, (abs(p.z) - .75) / .4), (p.y - .7) / .9), 0.0, 1.0); }
@@ -1010,21 +1014,21 @@ function swimInject(m, U, key, extra = '') {
 }
 
 
-// ---------- Vây ngực: quạt tròn, trong mờ, có gân tia ----------
+// ---------- Pectoral fins: round fan, translucent, with rays ----------
 const PEC_COL = {
   light: ['#f1ddd2', '#f4efe6'], motoguro: ['#18181a', '#e6e0d6'], black: ['#141416', '#3c3c3e'], orange: ['#d8742f', '#f2bf92'],
   tea: ['#8a6040', '#cfa985'], gold: ['#d9a640', '#f3d993'], grey: ['#66717c', '#cbd0d4'],
 };
 const PEC_OF_VARIANT = { 0: 'light', 1: 'light', 9: 'light', 7: 'light', 2: 'motoguro', 11: 'motoguro', 10: 'motoguro', 8: 'black', 3: 'orange', 4: 'orange', 5: 'tea', 6: 'gold', 12: 'grey' };
 const pecTex = {};
-// chấm hoa văn mờ trên vây theo giống: đỏ son, mực đen, nâu
-// tông thủy mặc: đỏ son trầm, mực nâu đen, xanh xám, nâu, vàng đất
+// faint pattern spots on the fin per variety: vermilion, ink black, brown
+// ink-wash tones: muted vermilion, brown-black ink, blue-grey, brown, ochre
 const PEC_SPOTS = { 0: ['#b8402a'], 1: ['#b8402a', '#2a2622'], 2: ['#b8402a', '#2a2622'], 3: ['#6a8296'], 4: ['#4a5f78'], 5: ['#6a4a30'], 6: ['#c09040'], 10: ['#2a2622'], 11: ['#b8402a'], 12: ['#7a5236'] };
 function pecTexture(variant, seed = 1) {
   const key = PEC_OF_VARIANT[variant] || 'light';
   const [rootC, baseC] = PEC_COL[key];
-  // Vây ngực koi thật: mép trước thẳng, dài; mép sau tròn, ngắn; cả vây quét về sau.
-  // Tia mảnh, hơi cong; màng giữa các tia trong hơn tia. Mép trên ảnh = mép trước của vây.
+  // Real koi pectoral fin: straight, long leading edge; round, short trailing edge; whole fin swept back.
+  // Thin, slightly curved rays; membrane between rays clearer than the rays. Top edge of the image = leading edge of the fin.
   const c = cv(220, 260, (x, w, h) => {
     const ox = 8, oy = 90, R = 205, a0 = -.62, a1 = 1.05, RAYS = 16;
     const rad = (t) => R * (1 - .45 * Math.pow(t, 1.3));
@@ -1033,12 +1037,12 @@ function pecTexture(variant, seed = 1) {
     const g = x.createRadialGradient(ox, oy, 0, ox, oy, R);
     g.addColorStop(0, rootC); g.addColorStop(.32, baseC); g.addColorStop(1, baseC);
     path(); x.fillStyle = g; x.fill();
-    // phủ nhẹ hoa văn của con cá lên màng vây (gần gốc, mờ)
+    // lightly overlay the fish's pattern onto the fin membrane (near the base, faint)
     const spots = PEC_SPOTS[variant];
     if (spots) {
       let sd = seed * 9301 + 49297; const rr = () => (sd = (sd * 9301 + 49297) % 233280) / 233280;
       x.save(); path(); x.clip(); x.globalCompositeOperation = 'source-atop';
-      // sắc tố chạy theo tia vây (như vây koi thật): mỗi dải phủ 2-4 tia liền nhau, đậm giữa, nhạt dần hai đầu
+      // pigment runs along the fin rays (like real koi fins): each band covers 2-4 adjacent rays, dark in the middle, fading at both ends
       for (let i = 0; i < 2 + Math.floor(rr() * 3); i++) {
         const t0 = rr() * .8, t1 = Math.min(1, t0 + (2 + rr() * 2) / 16), k0 = .12 + rr() * .35, k1 = Math.min(1, k0 + .3 + rr() * .5);
         const col = spots[Math.floor(rr() * spots.length)];
@@ -1059,8 +1063,8 @@ function pecTexture(variant, seed = 1) {
     x.globalCompositeOperation = 'source-over';
     x.save(); path(); x.clip();
     for (let i = 0; i < RAYS; i++) {
-      const t = (i + .5) / RAYS, e = at(t), m = at(t - .04, .5);              // tia cong nhẹ về phía trước rồi quét ra
-      // tia bắt đầu cách gốc ~18% bán kính: nếu chụm hết về một điểm sẽ tụ thành mũi gai đen ở chỗ vây mọc ra
+      const t = (i + .5) / RAYS, e = at(t), m = at(t - .04, .5);              // rays curve slightly forward then sweep out
+      // rays start ~18% of the radius from the base: if all converged to one point they'd form a black spike where the fin emerges
       const b = at(t, .18);
       x.strokeStyle = i === 0 ? 'rgba(40,30,22,.28)' : 'rgba(40,30,22,.2)'; x.lineWidth = i === 0 ? 1.6 : 1.3;
       x.beginPath(); x.moveTo(b[0], b[1]); x.quadraticCurveTo(m[0], m[1], e[0], e[1]); x.stroke();
@@ -1073,42 +1077,42 @@ function pecTexture(variant, seed = 1) {
   const t = new THREE.CanvasTexture(c); t.colorSpace = THREE.SRGBColorSpace; t.anisotropy = 8;
   return t;
 }
-// Quạt nằm trên mặt phẳng XZ của mesh, gốc ở x = 0, xoè theo +x
-// gốc vây (pixel 8, 90 trên ảnh 220x260) đặt tại gốc toạ độ
+// Fan lies on the mesh XZ plane, base at x = 0, spreading along +x
+// fin base (pixel 8, 90 in the 220x260 image) placed at the origin
 const PEC_GEO = (() => { const W = 1.3, H = W * 260 / 220; return new THREE.PlaneGeometry(W, H).translate(W / 2 - 8 / 220 * W, -(H / 2 - 90 / 260 * H), 0).rotateX(-Math.PI / 2); })();
 
 
-// nhịp cua (chỉnh qua window.KOI_TUNE): t1/t2 = thời lượng stage 1 (cong C) / stage 2 (bật ngược) của cú cua thường (giây),
-// depth = đuôi lệch tối đa khi cong C (đơn vị mesh, thân dài 6.39), counter = độ sâu bật ngược so với cong C,
-// follow = mức thân bám vệt cua, relax/straighten = sau bao lâu và duỗi bao nhiêu khi cua kéo dài
+// turn rhythm (tunable via window.KOI_TUNE): t1/t2 = duration of stage 1 (C bend) / stage 2 (counter-bend) of a normal turn (seconds),
+// depth = max tail offset in the C bend (mesh units, body length 6.39), counter = counter-bend depth relative to the C bend,
+// follow = how much the body follows the turn trail, relax/straighten = after how long and how much it straightens when a turn drags on
 const TUNE = window.KOI_TUNE = { t1: .22, t2: 1, depth: .25, counter: .45, follow: .85, relax: 1.3, straighten: .35 };
 const smooth01 = x => x * x * (3 - 2 * x);
-const KOI_SCALE = 1.6, KOI_PIVOT = 1.7;              // KOI_PIVOT: đơn vị mesh, dời thân ra sau để điểm xoay ở 1/3 trước
-const RIPPLE = [];                                   // nguồn gợn cho shader sóng trong frame này
+const KOI_SCALE = 1.6, KOI_PIVOT = 1.7;              // KOI_PIVOT: mesh units, shifts the body back so the pivot sits at the front 1/3
+const RIPPLE = [];                                   // ripple sources for the wave shader this frame
 const splash = (u, v, r, a) => { if (RIPPLE.length < 12) RIPPLE.push([u, v, r, a]); };
-const foods = [];                                    // hạt mồi: xem phần 'Thức ăn'
+const foods = [];                                    // food pellets: see the 'Food' section
 
 class Koi {
   constructor(o) {
     Object.assign(this, { x: 0, z: 0, y: -2, ty: -2, heading: 0, size: 1, variant: 1, seed: Math.random() * 100, cruise: 4.4, cur: 3, turn: 0, phase: rnd(0, 6), beat: .5, burstT: 0, thrust: .8, startle: 0, nextDepth: rnd(4, 12), sipT: rnd(2, 8) }, o);
     this.U = { uPhase: { value: 0 }, uAmp: { value: .3 }, uTurn: { value: 0 }, uSX: { value: Array.from({ length: 9 }, (_, k) => 2.87 - k / 8 * 6.39) }, uSZ: { value: new Array(9).fill(0) }, uWave: { value: 5.2 }, uFinL: { value: .5 }, uFinR: { value: .5 }, uSeed: { value: rnd(0, 50) }, uRedBias: { value: rnd(-.12, .15) } };
-    const toon = new THREE.MeshToonMaterial({ map: srcMat.map, gradientMap, transparent: true, side: THREE.DoubleSide });   // 2 mặt: đuôi xoắn khi cua không bị mất nửa
+    const toon = new THREE.MeshToonMaterial({ map: srcMat.map, gradientMap, transparent: true, side: THREE.DoubleSide });   // double-sided: the tail twisting during turns doesn't lose half
     toon.userData.variant = this.variant;
     this.root = new THREE.Group(); const body = new THREE.Group(); body.quaternion.copy(NODE_Q); this.root.add(body);
-    body.position.x = KOI_PIVOT;                       // gốc xoay gần đầu: đầu dẫn hướng, thân + đuôi đi theo vệt bơi
+    body.position.x = KOI_PIVOT;                       // pivot near the head: head leads, body + tail follow the swim trail
     this.mesh = new THREE.Mesh(koiGeo, swimInject(toon, this.U, `koi-${this.variant}`)); this.mesh.renderOrder = 1;
     this.mesh.castShadow = true;
     this.mesh.customDepthMaterial = swimInject(new THREE.MeshDepthMaterial({ depthPacking: THREE.RGBADepthPacking }), this.U, 'koi-depth');
-    body.add(this.mesh);   // không viền mực: thân liền mạch với vây/đuôi trong mờ
+    body.add(this.mesh);   // no ink outline: body blends seamlessly with the translucent fins/tail
     this.pecs = [];
     const pecMat = new THREE.MeshToonMaterial({ map: pecTexture(this.variant, Math.floor(rnd(1, 9999))), gradientMap, transparent: true, depthWrite: false, side: THREE.DoubleSide, alphaTest: .04 });
     for (const sd of [1, -1]) {
-      const pivot = new THREE.Group(); pivot.position.set(1.45, -.36, sd * .46); body.add(pivot);   // ngay sau mang, gốc khuất dưới mép thân
-      const m = new THREE.Mesh(PEC_GEO, pecMat); m.castShadow = true; m.renderOrder = -1; if (sd < 0) m.scale.z = -1; pivot.add(m);   // vẽ trước thân: thân đè lên gốc vây
-      const k = rnd(.85, 1.15); m.scale.x *= k; m.scale.z *= k;      // cỡ vây riêng từng con
-      this.pecs.push({ pivot, m, sd, bias: rnd(-.1, .14), seed: rnd(0, 9), back: 0, flap: .2, rest: pivot.position.clone() });   // góc khép riêng, trái/phải lệch nhau
+      const pivot = new THREE.Group(); pivot.position.set(1.45, -.36, sd * .46); body.add(pivot);   // right behind the gills, root hidden under the body edge
+      const m = new THREE.Mesh(PEC_GEO, pecMat); m.castShadow = true; m.renderOrder = -1; if (sd < 0) m.scale.z = -1; pivot.add(m);   // drawn before the body: body covers the fin root
+      const k = rnd(.85, 1.15); m.scale.x *= k; m.scale.z *= k;      // per-fish fin size
+      this.pecs.push({ pivot, m, sd, bias: rnd(-.1, .14), seed: rnd(0, 9), back: 0, flap: .2, rest: pivot.position.clone() });   // per-fish fold angle, left/right differ
     }
-    // vây bụng: cùng kiểu quạt, nhỏ hơn (~55%), ở giữa thân dưới mép bụng, quét về sau nhiều hơn
+    // pelvic fins: same fan style, smaller (~55%), mid-body under the belly edge, swept back more
     for (const sd of [1, -1]) {
       const pivot = new THREE.Group(); pivot.position.set(.05, -.58, sd * .3); body.add(pivot);
       const m = new THREE.Mesh(PEC_GEO, pecMat); m.castShadow = true; m.renderOrder = -1; if (sd < 0) m.scale.z = -1; pivot.add(m);
@@ -1119,16 +1123,16 @@ class Koi {
     waterScene.add(this.root);
   }
   head() { const L = (2.87 - KOI_PIVOT) * this.size * KOI_SCALE; return [this.x + Math.cos(this.heading) * L, this.z + Math.sin(this.heading) * L]; }
-  // một cú cua: D = góc rẽ (rad, có dấu); fast = giật mình (C-start nhanh hơn nhiều)
+  // one turn: D = turn angle (rad, signed); fast = startle (much faster C-start)
   startTurn(D, fast = false) { this.ev = { D, t: 0, prev: 0, fast, t1: fast ? .11 : TUNE.t1 * rnd(.85, 1.15), t2: fast ? .17 : TUNE.t2 }; }
   update(dt, t, others, pointer) {
     this.t = t;
-    // Đổi hướng theo nghiên cứu cá koi (Wu, Yang & Zeng 2007, J Exp Biol 210:4379): cá chủ yếu cua "một nhịp":
-    //  stage 1: thân cong chữ C về phía rẽ, gần hết góc rẽ diễn ra ở đây, thời lượng gần như cố định;
-    //  stage 2: thân + đuôi bật ngược sang bên kia (cú đẩy), sau đó bơi thẳng/lướt. Giữa các cú cua cá đi gần thẳng.
-    // Giật mình = C-start (Eaton 1988, cá vàng): stage 1 xoay thân 30-100° rất nhanh, stage 2 lao thẳng; quỹ đạo sau đó thẳng.
+    // Turning per koi research (Wu, Yang & Zeng 2007, J Exp Biol 210:4379): fish mostly turn in "a single beat":
+    //  stage 1: body bends into a C toward the turn, most of the turn angle happens here, near-fixed duration;
+    //  stage 2: body + tail flip back to the other side (the push), then swim straight/glide. Between turns fish go nearly straight.
+    // Startle = C-start (Eaton 1988, goldfish): stage 1 rotates the body 30-100° very fast, stage 2 darts straight; trajectory straight afterwards.
     let want = this.cruise, desired, urg = 0;
-    // Mồi: có độ trễ phản ứng, bơi tới, chậm lại, ngoi lên ngay dưới hạt, ngẩng đầu đớp.
+    // Food: reaction delay, swim over, slow down, rise right under the pellet, lift the head and gulp.
     this.gulpCD = (this.gulpCD || 0) - dt; this.react = (this.react ?? rnd(.2, 1.2)) - dt;
     if (this.food && (this.food.state === 'gone' || this.food.state === 'suck')) this.food = null;
     if (!this.food && this.react <= 0) {
@@ -1146,14 +1150,14 @@ class Koi {
       if (dh < 5) this.pitchT = food.state === 'float' ? .38 : .15;
       if (dh < 1.15 && Math.abs(this.y - food.y) < 1.3 && this.gulpCD <= 0) gulp(this);
     } else {
-      // đích bơi ngẫu nhiên trong hồ (đổi định kỳ) + né cá khác: cộng vector rồi lấy hướng
+      // random swim goal in the pond (changes periodically) + avoid other fish: sum vectors then take the heading
       this.goalT = (this.goalT ?? 0) - dt;
       const gBack = this.goal && Math.abs(angDiff(Math.atan2(this.goal[1] - dy, this.goal[0] - dx), this.heading)) > 1.9;
-      // tới gần đích, hoặc đích đã lọt ra sau lưng (đi lướt qua) -> chọn đích mới, không quay lại quần quanh đích cũ
-      if (!this.goal || this.goalT < 0 || Math.hypot(this.goal[0] - dx, this.goal[1] - dy) < 90 || (gBack && e < .55)) {   // chưa có đích (frame đầu dt = 0) cũng chọn ngay
+      // near the goal, or the goal has slipped behind (passed by) -> pick a new goal, don't circle back around the old one
+      if (!this.goal || this.goalT < 0 || Math.hypot(this.goal[0] - dx, this.goal[1] - dy) < 90 || (gBack && e < .55)) {   // no goal yet (first frame dt = 0) also picks immediately
         let best = null, bs = -1e9;
-        // chấm điểm đích: ít phải rẽ, xa (bơi cắt ngang hồ thay vì men bờ), và rẽ NGƯỢC chiều đã rẽ nhiều gần đây
-        // -> không bị cuốn vào vòng một chiều dọc bờ
+        // score goals: little turning, far away (cross the pond instead of hugging the shore), and turning OPPOSITE to the recent dominant turn direction
+        // -> don't get caught in a one-way loop along the shore
         for (let i = 0; i < 8; i++) {
           const g = pondPt(rnd(0, TAU), rnd(.05, .65)), a = angDiff(Math.atan2(g[1] - dy, g[0] - dx), this.heading);
           const sc = -.5 * Math.abs(a) + .004 * Math.hypot(g[0] - dx, g[1] - dy) - (Math.sign(a) === Math.sign(this.net || 0) ? Math.min(1.2, Math.abs(this.net || 0) / 2.5) : 0) + rnd(0, .8);
@@ -1165,11 +1169,11 @@ class Koi {
       let vx = Math.cos(toGoal), vz = Math.sin(toGoal);
       for (const o of others) { if (o === this) continue; const ddx = this.x - o.x, ddz = this.z - o.z, d = Math.hypot(ddx, ddz), R = 7 * this.size; if (d < R && d > 0 && Math.abs(o.y - this.y) < 1.6) { vx += ddx / d * 1.3 * (1 - d / R); vz += ddz / d * 1.3 * (1 - d / R); } }
       desired = Math.atan2(vz, vx);
-      urg = clamp((e - .55) / .35, 0, 1);   // gần bờ: cua sớm hơn, dứt khoát hơn
+      urg = clamp((e - .55) / .35, 0, 1);   // near the shore: turn earlier, more decisively
     }
     const err = angDiff(desired, this.heading);
     this.gapT = (this.gapT ?? rnd(.5, 2)) - dt; this.lockT = (this.lockT || 0) - dt;
-    // Giật mình: chốt MỘT hướng thoát lúc bị động vào mặt nước (ngược phía con trỏ), C-start rồi lao thẳng.
+    // Startle: lock ONE escape heading when the water surface is touched (away from the pointer), C-start then dart straight.
     this.startleCD = (this.startleCD || 0) - dt;
     if (pointer && this.startle <= 0 && this.startleCD <= 0 && pointer.speed > 18) {
       const ddx = this.x - pointer.x, ddz = this.z - pointer.z, d = Math.hypot(ddx, ddz);
@@ -1178,106 +1182,106 @@ class Koi {
         if (Math.abs(D) < .4) D = Math.sign(D || 1) * .4;
         this.startTurn(clamp(D, -2.4, 2.4), true);
         this.startle = rnd(1, 1.4); this.burstT = 0; this.startleCD = this.startle + rnd(1.8, 3); this.food = null;
-        // đích mới nằm phía trước hướng thoát -> sau cú lao không vòng ngược lại
+        // new goal lies ahead along the escape heading -> no looping back after the dart
         const h = this.heading + D, [ax, ay] = w2d(this.x + Math.cos(h) * 14, this.z + Math.sin(h) * 14, this.y);
         this.goal = [lerp(ax, POND.cx, .3), lerp(ay, POND.cy, .3)]; this.goalT = rnd(4, 7);
       }
     }
     if (this.startle > 0) { this.startle -= dt; want = this.cruise * 4; }
-    // cú cua một nhịp khi lệch hướng đủ lớn; giữa hai cú có khoảng nghỉ (bơi thẳng/lướt)
+    // single-beat turn when the heading error is large enough; a rest interval between turns (straight swim/glide)
     if (!this.ev && this.lockT <= 0 && this.gapT <= 0) {
       const thr = food ? .22 : lerp(.6, .18, urg);
-      if (Math.abs(err) > thr) this.startTurn(clamp(err * rnd(.9, 1.05), -1.7, 1.7));   // rẽ gần đủ góc lệch: rẽ thiếu đều đặn sẽ thành vòng quần quanh đích
+      if (Math.abs(err) > thr) this.startTurn(clamp(err * rnd(.9, 1.05), -1.7, 1.7));   // turn nearly the full heading error: consistent under-turning becomes circling around the goal
       else {
-        // thỉnh thoảng rẽ tự do, ưu tiên ngược chiều đã rẽ nhiều -> đường bơi lượn cả hai phía
+        // occasionally turn freely, favoring the opposite of the recent dominant direction -> path meanders both ways
         this.turnT = (this.turnT ?? rnd(1, 6)) - dt;
         if (this.turnT < 0 && !food && urg < .3) { this.turnT = rnd(5, 12); this.startTurn((Math.abs(this.net || 0) > .8 && Math.random() < .75 ? -Math.sign(this.net) : (Math.random() < .5 ? -1 : 1)) * rnd(.35, .9)); }
       }
     }
-    // lệch nhỏ: chỉnh hướng liên tục rất nhẹ (cua nhiều nhịp), thân gần như không cong
+    // small error: continuous, very gentle heading correction (multi-beat turn), body barely bends
     const contT = clamp(err * (food ? .6 : .12 + urg * .9), -(food ? .5 : .07 + urg * .8), food ? .5 : .07 + urg * .8);
     this.contW = lerp(this.contW || 0, contT, 1 - Math.exp(-dt * 2));
     let evRot = 0; this.cBend = 0;
     if (this.ev) {
       const ev = this.ev; ev.t += dt;
-      // ~80% góc rẽ trong stage 1 (C), phần còn lại trong stage 2 (bật ngược)
+      // ~80% of the turn angle in stage 1 (C), the rest in stage 2 (counter-bend)
       const prog = ev.t < ev.t1 ? .8 * smooth01(ev.t / ev.t1) : .8 + .2 * smooth01(Math.min(1, (ev.t - ev.t1) / ev.t2));
       evRot = ev.D * (prog - ev.prev); ev.prev = prog;
       let a;
-      if (ev.t < ev.t1) a = Math.sin(Math.PI / 2 * ev.t / ev.t1);                                  // 0 -> C sâu nhất
-      else { const c = Math.cos(1.5 * Math.PI * Math.min(1, (ev.t - ev.t1) / ev.t2)); a = c < 0 ? c * TUNE.counter : c; }   // C -> bật ngược -> thẳng
+      if (ev.t < ev.t1) a = Math.sin(Math.PI / 2 * ev.t / ev.t1);                                  // 0 -> deepest C
+      else { const c = Math.cos(1.5 * Math.PI * Math.min(1, (ev.t - ev.t1) / ev.t2)); a = c < 0 ? c * TUNE.counter : c; }   // C -> counter-bend -> straight
       this.cBend = Math.sign(ev.D) * a * Math.min(1.4, Math.abs(ev.D) / 1.2);
-      if (ev.t >= ev.t1 && !ev.pushed) { ev.pushed = true; this.cur += ev.fast ? this.cruise * 2.2 : this.cruise * .25 * Math.min(1, Math.abs(ev.D)); }   // cú đẩy của stage 2
+      if (ev.t >= ev.t1 && !ev.pushed) { ev.pushed = true; this.cur += ev.fast ? this.cruise * 2.2 : this.cruise * .25 * Math.min(1, Math.abs(ev.D)); }   // stage 2 push
       if (ev.t >= ev.t1 + ev.t2) { this.ev = null; this.gapT = food ? rnd(.15, .4) : rnd(.8, 2.6) * (1 - urg * .7); if (ev.fast) this.lockT = rnd(.8, 1.3); }
     }
     this.evEnv = lerp(this.evEnv || 0, this.ev ? 1 : 0, 1 - Math.exp(-dt * 10));
     this.burstT -= dt;
-    if (this.burstT <= 0) { this.burstT = rnd(2.4, 4.2); this.thrust = rnd(.78, .95); }   // nhịp quẫy/lướt dài, lực đẩy đều
+    if (this.burstT <= 0) { this.burstT = rnd(2.4, 4.2); this.thrust = rnd(.78, .95); }   // long beat/glide rhythm, steady thrust
     const kick = this.burstT > (this.startle > 0 ? 0 : 1.0) ? 1 : 0;
     const thrust = Math.max(kick * this.thrust, (want - this.cur) / 3);
     this.cur = clamp(this.cur + (thrust * 4.2 - this.cur * .55) * dt, .4, this.cruise * 4.5);
-    this.beat = lerp(this.beat, clamp(.35 + thrust * .9, .3, 1.6), 1 - Math.exp(-dt * 4));   // đang bơi thì luôn quẫy đều hai bên
+    this.beat = lerp(this.beat, clamp(.35 + thrust * .9, .3, 1.6), 1 - Math.exp(-dt * 4));   // while swimming, always beat evenly on both sides
     this.heading += this.contW * dt + evRot;
     this.angVel = this.contW + evRot / Math.max(dt, 1e-4);
-    this.net = (this.net || 0) * Math.exp(-dt / 10) + this.contW * dt + evRot;   // tổng lượng đã rẽ gần đây (có dấu)
-    if (this.startle <= 0) this.cur *= 1 - Math.min(.25, Math.abs(this.angVel) * .2) * dt * 2;   // chậm lại khi cua
+    this.net = (this.net || 0) * Math.exp(-dt / 10) + this.contW * dt + evRot;   // total recent turning (signed)
+    if (this.startle <= 0) this.cur *= 1 - Math.min(.25, Math.abs(this.angVel) * .2) * dt * 2;   // slow down while turning
     this.turn = this.angVel;
     this.x += Math.cos(this.heading) * this.cur * dt; this.z += Math.sin(this.heading) * this.cur * dt;
     this.nextDepth -= dt;
     if (this.nextDepth < 0 && !this.food) { this.ty = -rnd(.9, 5); this.nextDepth = rnd(6, 16); }
     this.y = lerp(this.y, this.ty, 1 - Math.exp(-dt * .5));
-    // gần mặt nước: đầu cá rẽ nước (vệt sóng hình V), thỉnh thoảng ngoi lên đớp
+    // near the surface: head parts the water (V-shaped wake), occasionally rises to gulp
     if (this.y > -1.6) { const [hx, hz] = this.head(), [u, v] = w2uv(hx, SURF_Y, hz); splash(u, v, .006, .012 * (1.6 + this.y) * this.cur / 4); }
     this.sipT -= dt;
     if (this.y > -1.3 && this.sipT < 0) { const [hx, hz] = this.head(), [u, v] = w2uv(hx, SURF_Y, hz); splash(u, v, .009, .35); this.sipT = rnd(2, 7); }
-    // tần số quẫy tỉ lệ vận tốc (~0.8 thân/nhịp); biên độ theo lực đẩy, đổi mượt; lướt thì thân duỗi dần
+    // beat frequency proportional to speed (~0.8 body lengths/beat); amplitude follows thrust, changes smoothly; when gliding the body gradually straightens
     const Lw = 6.39 * this.size * KOI_SCALE;
     this.phase += dt * TAU * (.28 + this.cur / (.8 * Lw) + this.beat * .2);
-    this.U.uPhase.value = this.phase; this.U.uAmp.value = lerp(this.U.uAmp.value, (.09 + this.beat * .34) * (1 - .7 * this.evEnv), 1 - Math.exp(-dt * 2.5)); /* lúc cua, cú cong C + bật ngược thay cho nhịp quẫy */ {
-      // thân cong theo độ cong đường bơi kappa = omega / v (đổi sang đơn vị mesh): đuôi nằm đúng trên vệt cũ
-      // Thân là chuỗi 8 đốt: đốt đầu theo hướng bơi, mỗi đốt sau đuổi theo hướng đốt trước với độ trễ theo vận tốc.
-      // Góc giữa hai đốt kề nhau bị giới hạn + làm mượt -> khúc cong phân bố đều như chữ C, không gập ở một điểm.
+    this.U.uPhase.value = this.phase; this.U.uAmp.value = lerp(this.U.uAmp.value, (.09 + this.beat * .34) * (1 - .7 * this.evEnv), 1 - Math.exp(-dt * 2.5)); /* during a turn, the C bend + counter-bend replace the tail beat */ {
+      // body bends with path curvature kappa = omega / v (converted to mesh units): tail lies exactly on the old trail
+      // Body is a chain of 8 segments: the first follows the swim heading, each next one chases the previous one's heading with speed-dependent lag.
+      // Angle between adjacent segments is limited + smoothed -> bend spreads evenly like a C, no kink at one point.
       const sc = this.size * KOI_SCALE, seg = 6.39 / 8, A = this.segA || (this.segA = new Array(9).fill(this.heading));
       A[0] = this.heading;
       const kf = 1 - Math.exp(-dt * Math.max(this.cur, .8) / (seg * sc) * 1.4);
       for (let k = 1; k <= 8; k++) {
         A[k] += angDiff(A[k - 1], A[k]) * kf;
                 A[k] += angDiff(A[k - 1], A[k]) * (1 - Math.exp(-dt * 5));
-        const dk = angDiff(A[k], A[k - 1]); A[k] = A[k - 1] + .3 * Math.tanh(dk / .3);   // bão hoà mềm: không gãy gấp khi chạm giới hạn
+        const dk = angDiff(A[k], A[k - 1]); A[k] = A[k - 1] + .3 * Math.tanh(dk / .3);   // soft saturation: no sharp kink when hitting the limit
       }
       for (let k = 1; k < 8; k++) A[k] += angDiff(A[k - 1] + angDiff(A[k + 1], A[k - 1]) / 2, A[k]) * .4;
-      // dựng toạ độ mesh từ mõm xuống đuôi (+x về phía đầu, +z = pháp tuyến trái của hướng bơi)
+      // build mesh coords from snout to tail (+x toward the head, +z = left normal of the swim heading)
       const X = [2.87], Z = [0];
       for (let k = 1; k <= 8; k++) {
-        // hướng đoạn = (vệt cua, giảm theo follow) + dáng chữ C như bản vẽ: z(s) = depth * cBend * ((s-.4)^2 - .16) / .2
-        // -> hai đầu cùng cụp vào trong vòng cua, đuôi lệch đúng depth; góc lấy từ đạo hàm nên thân không bị kéo dài
+        // segment heading = (turn trail, reduced by follow) + drawn C shape: z(s) = depth * cBend * ((s-.4)^2 - .16) / .2
+        // -> both ends curl into the turn, tail offset exactly depth; angle taken from the derivative so the body doesn't stretch
         const sm = (k - .5) / 8, dz = TUNE.depth * this.cBend * 2 * (sm - .4) / (.2 * 6.39);
-        // phần cong theo vệt cua chỉ là nhất thời: trừ dần bản trễ của nó (rSlow) -> vào cua thân cong, cua kéo dài thì
-        // thân tự duỗi thẳng sau ~relax giây và hướng đi đổi bằng các cú quẫy đuôi, không giữ dáng trái chuối
+        // the trail-following bend is only transient: subtract its lagged copy (rSlow) -> body bends entering a turn, and on a long turn
+        // the body straightens itself after ~relax seconds and heading changes via tail beats, not holding a banana shape
         const rf = angDiff(A[k - 1] + angDiff(A[k], A[k - 1]) / 2, this.heading) * TUNE.follow, rs = this.rSlow || (this.rSlow = new Array(9).fill(0));
         rs[k] = lerp(rs[k], rf, 1 - Math.exp(-dt / TUNE.relax));
         const r = rf - rs[k] * TUNE.straighten - Math.asin(clamp(dz, -.9, .9));
         X.push(X[k - 1] - Math.cos(r) * seg); Z.push(Z[k - 1] - Math.sin(r) * seg);
       }
-      // dời cho điểm xoay (s0, gần đầu) trùng gốc toạ độ của cá
+      // shift so the pivot (s0, near the head) coincides with the fish's origin
       const s0 = (2.87 - KOI_PIVOT) / 6.39, pf = s0 * 8, pi = Math.floor(pf), pt = pf - pi;
       const ox = KOI_PIVOT - lerp(X[pi], X[pi + 1], pt), oz = -lerp(Z[pi], Z[pi + 1], pt);
       const SX = this.U.uSX.value, SZ = this.U.uSZ.value;
-      // bỏ phần cong đều đặn kéo dài (cá bơi vòng quanh hồ elip luôn hơi rẽ về tâm) -> đuôi vẫy cân 2 bên;
-      // phần cong nhất thời khi cua vẫn giữ nguyên
+      // remove the steady long-lasting bend (fish circling the elliptical pond always turn slightly toward the center) -> tail beats evenly on both sides;
+      // the transient bend while turning is kept as is
       const slow = this.bendSlow || (this.bendSlow = new Array(9).fill(0)), ks = 1 - Math.exp(-dt * .25);
       for (let k = 0; k <= 8; k++) { const z = Z[k] + oz; slow[k] = lerp(slow[k], z, ks); SX[k] = X[k] + ox; SZ[k] = z - slow[k] * .25; }
       this.U.uTurn.value = 0;
     }
-    // vây ngực: chậm/phanh -> xoè; nhanh -> xếp sát thân; rẽ -> vây phía trong vòng rẽ (+z khi turn > 0) xoè thêm
+    // pectoral fins: slow/braking -> spread; fast -> folded against the body; turning -> fin on the inside of the turn (+z when turn > 0) spreads more
     const open = clamp(1.35 - this.cur / 9, .55, 1), k = 1 - Math.exp(-dt * 3);
     this.U.uFinR.value = lerp(this.U.uFinR.value, clamp(open + Math.max(this.turn, 0) * .35, 0, 1), k);
     this.U.uFinL.value = lerp(this.U.uFinL.value, clamp(open + Math.max(-this.turn, 0) * .35, 0, 1), k);
-    // vây quạt: quét về sau khi bơi nhanh, xoè rộng khi chậm; xoay phiến như mái chèo
+    // fan fins: swept back when swimming fast, spread wide when slow; blade rotates like an oar
     for (const f of this.pecs) {
       const open = f.sd > 0 ? this.U.uFinR.value : this.U.uFinL.value;
-      const beta = lerp(1.42, .95, open) + f.bias + f.back + Math.sin(this.t * .6 + f.seed) * .08;   // khép sát thân, dao động chậm
-      // vây bám theo sống lưng đang cong: vị trí + hướng tiếp tuyến tại chỗ gắn (cùng cách nội suy với shader)
+      const beta = lerp(1.42, .95, open) + f.bias + f.back + Math.sin(this.t * .6 + f.seed) * .08;   // folded close to the body, slow oscillation
+      // fins follow the bending spine: position + tangent direction at the attachment point (same interpolation as the shader)
       const SX = this.U.uSX.value, SZ = this.U.uSZ.value, sr = clamp((2.87 - f.rest.x) / 6.39, 0, 1), fi = Math.min(7, Math.floor(sr * 8)), ft = sr * 8 - fi;
       const tX = SX[fi] - SX[fi + 1], tZ = SZ[fi] - SZ[fi + 1], tl = Math.hypot(tX, tZ) || 1, Tx = tX / tl, Tz = tZ / tl;
       const U = this.U, w = U.uAmp.value * (.03 + .12 * sr + .85 * sr * sr) * Math.sin(U.uPhase.value - sr * U.uWave.value), lz = f.rest.z + w;
@@ -1287,11 +1291,11 @@ class Koi {
     }
     this.pitch = lerp(this.pitch || 0, this.pitchT, 1 - Math.exp(-dt * 4));
     this.root.position.set(this.x, this.y, this.z);
-    // YZX: quay theo hướng bơi, rồi ngẩng đầu quanh trục ngang thân (đầu cá ở -x cục bộ)
+    // YZX: rotate to the swim heading, then pitch the head about the body's transverse axis (head at local -x)
     this.root.rotation.set(0, -this.heading + Math.PI, -this.pitch, 'YZX');
   }
 }
-// Giống koi + trọng số xuất hiện (càng nhỏ càng hiếm). Mỗi lần tải trang là một đàn khác.
+// Koi varieties + spawn weights (smaller = rarer). Each page load gives a different school.
 const VARIETIES = [
   ['Kohaku', 0, 22], ['Taishō Sanke', 1, 16], ['Shōwa', 2, 14], ['Asagi', 3, 8], ['Chagoi', 5, 7], ['Ogon', 6, 6],
   ['Platinum Ogon', 7, 5], ['Ochiba', 12, 5], ['Shūsui', 4, 4], ['Karasu', 8, 4], ['Hi Utsuri', 11, 4], ['Kumonryū', 10, 2.5], ['Tanchō', 9, 2.5],
@@ -1305,13 +1309,13 @@ const fish = Array.from({ length: 9 }, (_, i) => {
 });
 {
   const count = {}; for (const f of fish) count[f.variety[0]] = (count[f.variety[0]] || 0) + 1;
-  document.getElementById('koiList').innerHTML = 'Hồ hôm nay: ' + Object.entries(count).map(([n, c]) => {
+  document.getElementById('koiList').innerHTML = 'In the pond today: ' + Object.entries(count).map(([n, c]) => {
     const w = VARIETIES.find(v => v[0] === n)[2] / VAR_TOTAL * 100;
-    return `${n}${c > 1 ? ' ×' + c : ''} <span style="opacity:.6">(${w.toFixed(1)}%${w < 5 ? ' ★ hiếm' : ''})</span>`;
-  }).join(' · ') + ' — tải lại trang để thả đàn khác.';
+    return `${n}${c > 1 ? ' ×' + c : ''} <span style="opacity:.6">(${w.toFixed(1)}%${w < 5 ? ' ★ rare' : ''})</span>`;
+  }).join(' · ') + ' — reload for a new school.';
 }
 
-// ---------- Mô phỏng mặt nước (stir + sóng), như demo đầu tiên ----------
+// ---------- Water surface simulation (stir + waves), as in the first demo ----------
 const qCam = new THREE.OrthographicCamera(-1, 1, 1, -1, 0, 1), quadGeo = new THREE.PlaneGeometry(2, 2);
 const QV = `varying vec2 vUv; void main() { vUv = uv; gl_Position = vec4(position.xy, 0.0, 1.0); }`;
 function pass(frag, uniforms) { const m = new THREE.ShaderMaterial({ vertexShader: QV, fragmentShader: frag, uniforms, depthTest: false, depthWrite: false }); const s = new THREE.Scene(); const q = new THREE.Mesh(quadGeo, m); q.frustumCulled = false; s.add(q); return { s, m, u: uniforms }; }
@@ -1361,13 +1365,13 @@ const comp = pass(/* glsl */ `
     vec2 disp = texture(uStir, vUv).xy;
     float hC = H(vUv), hL = H(vUv - vec2(uWaveTexel.x, 0.0)), hR = H(vUv + vec2(uWaveTexel.x, 0.0)), hD = H(vUv - vec2(0.0, uWaveTexel.y)), hU = H(vUv + vec2(0.0, uWaveTexel.y));
     vec3 N = normalize(vec3((hL - hR) * 9.0, (hD - hU) * 9.0, 1.0));
-    // gió: vân sóng li ti chạy theo hướng gió
+    // wind: tiny ripples running in the wind direction
     vec2 wd = normalize(uWind + 1e-4), p = vUv * vec2(uAspect, 1.0);
     vec2 q = vec2(dot(p, wd), dot(p, vec2(-wd.y, wd.x)));
     float wn = noise(vec2(q.x * 46.0 - uTime * 3.0, q.y * 9.0)) + .5 * noise(vec2(q.x * 90.0 - uTime * 5.0, q.y * 22.0));
     vec2 uv = vUv - disp - N.xy * .018 + wd * (wn - .75) * .0026 * uGust;
     vec3 col = texture(uScene, uv).rgb;
-    // gợn vẽ như nét mực: đáy sóng sẫm mực, đỉnh sóng sáng màu giấy
+    // ripples drawn like ink strokes: wave troughs ink-dark, crests paper-light
     float lap = hL + hR + hD + hU - 4.0 * hC;
     col = mix(col, col * .5, smoothstep(.003, .03, lap) * .6);
     col = mix(col, uPaper * 1.04, smoothstep(.003, .03, -lap) * .4);
@@ -1384,10 +1388,10 @@ function fit() {
 }
 fit(); new ResizeObserver(fit).observe(canvas);
 
-// ---------- Lớp tranh + vật trôi/rơi ----------
-// ---------- Cỏ ven bờ (chuyển động) ----------
-// Mỗi khóm cỏ là một tấm sprite riêng, uốn trong vertex shader: cúi theo hướng gió, mức cúi theo cơn giật
-// đi tới khóm đó (uGustL), thêm rung lá nhỏ.
+// ---------- Painted layers + floating/falling objects ----------
+// ---------- Shoreline grass (animated) ----------
+// Each grass clump is its own sprite, bent in the vertex shader: bows along the wind direction, bow amount follows the gust
+// reaching that clump (uGustL), plus small leaf flutter.
 const plantVert = /* glsl */ `
   uniform float uTime, uGustL, uSeed, uAmp; uniform vec2 uWind; varying vec2 vUv;
   void main() {
@@ -1395,13 +1399,13 @@ const plantVert = /* glsl */ `
     float fl = sin(uTime * (2.0 + uSeed * .4) + uSeed * 6.0) * .6 + sin(uTime * 3.9 + uSeed * 2.0) * .4;
     float b = uGustL * .85 + .08 + fl * (.05 + .2 * uGustL);
     vec2 d = vec2(uWind.x, -uWind.y) * b * h * h * uAmp;
-    p.xy += d; p.y -= length(d) * .35 * h;                 // cúi xuống thì ngọn thấp lại
+    p.xy += d; p.y -= length(d) * .35 * h;                 // when bowing, the tip gets lower
     gl_Position = projectionMatrix * modelViewMatrix * vec4(p, 1.0);
   }`;
 function plantMat(tex, seed, amp) {
   return new THREE.ShaderMaterial({
     transparent: true, depthWrite: false, depthTest: false,
-    // uGust/uWind/uTime/uOpacity do vòng lặp lớp tranh gán chung; uGustL gán riêng từng khóm
+    // uGust/uWind/uTime/uOpacity set jointly by the painted-layer loop; uGustL set per clump
     uniforms: { map: { value: tex }, uOpacity: { value: 0 }, uTime: { value: 0 }, uGust: { value: 0 }, uGustL: { value: 0 }, uWind: { value: new THREE.Vector2(-1, 0) }, uSeed: { value: seed }, uAmp: { value: amp } },
     vertexShader: plantVert,
     fragmentShader: /* glsl */ `
@@ -1413,17 +1417,17 @@ function plantMat(tex, seed, amp) {
       }`,
   });
 }
-// tấm phẳng nằm ngang, gốc cây ở (bx, by) toạ độ thiết kế; gốc nằm ở (cx, by0) trên ảnh w x h đơn vị thiết kế
+// horizontal flat sheet, plant base at (bx, by) design coords; base at (cx, by0) on the w x h image in design units
 function plantMesh(mat, w, h, by0, bx, by, y, rot = 0, scale = 1) {
   const k = viewAt(y).w / DW * scale, m = new THREE.Mesh(new THREE.PlaneGeometry(w * k, h * k, 1, 10), mat);
-  const ly = (by0 - h / 2) * k, [rx, rz] = d2w(bx, by, y);   // tâm ảnh cách gốc ly theo trục +y cục bộ
+  const ly = (by0 - h / 2) * k, [rx, rz] = d2w(bx, by, y);   // image center is ly from the base along local +y
   m.rotation.set(-Math.PI / 2, 0, rot);
   m.position.set(rx - ly * Math.sin(rot), y, rz - ly * Math.cos(rot));
   return m;
 }
 async function buildPlants(S, key) {
   const { R, E } = Ink, out = { grass: [] };
-  // cỏ ven bờ: đúng vị trí các khóm trước đây vẽ cứng trong shoreArt (cùng chuỗi số ngẫu nhiên)
+  // shoreline grass: exact positions of the clumps previously hard-drawn in shoreArt (same random sequence)
   const r = R(23), gc = key === 'winter' ? '#6a6050' : S.grass, tufts = [];
   for (let i = 0; i < 22; i++) {
     const th = r() * TAU, [x, y] = pondPt(th, 1.12 + r() * .1), n = 4 + Math.round(r() * 4), h = 24 + r() * 16;
@@ -1431,7 +1435,7 @@ async function buildPlants(S, key) {
     tufts.push({ x, y, draw: s => Ink.grass(s, 50, 96, n, 900 + i, gc, h), amp: h / 40 });
   }
   if (key === 'summer' || key === 'spring') {
-    // khóm diên vĩ (iris) ở góc dưới phải, hoa đi cùng lá
+    // iris clump at bottom right, flowers go with the leaves
     const fl = [[6, -50], [6, -52], [8, -32]];
     for (let i = 0; i < 3; i++) tufts.push({ x: 840 + i * 26, y: 520 - i * 6, amp: 1.2, draw: s => {
       Ink.grass(s, 50, 96, 7, 950 + i, '#2f4a24', 56);
@@ -1447,8 +1451,8 @@ async function buildPlants(S, key) {
   return out;
 }
 
-// Gió ngẫu nhiên: gió nền đổi chậm (lúc lặng, lúc đều) + từng cơn giật đến bất chợt: lên dần, giữ, tắt dần;
-// mỗi cơn lệch hướng một chút. Lưu lịch sử vài giây để cơn gió lan dần qua cảnh (cỏ phía đầu gió lay trước).
+// Random wind: slowly changing base wind (calm at times, steady at others) + gusts arriving unexpectedly: ramp up, hold, fade;
+// each gust shifts direction a little. Keep a few seconds of history so a gust spreads across the scene (upwind grass sways first).
 const WIND = { base: .25, baseT: .25, nextT: 2, gusts: [], dirOff: 0, hist: [] };
 function updateWind(dt, t) {
   const W = WIND;
@@ -1479,10 +1483,10 @@ function updatePlants(dt, t, wind) {
   }
 }
 
-// ---------- Ngày / đêm ----------
-// Đêm: phủ lớp nhân màu chàm lên toàn cảnh (chuyển dần ~3 s), chừa quầng sáng của đèn đá và ánh trăng loang trên nước;
-// trên lớp tối vẽ cộng sáng: ngọn đèn, bóng trăng, đom đóm. Ếch ra ngồi trên lá sen, phồng túi kêu làm gợn nước,
-// thỉnh thoảng nhảy tõm xuống hồ. Đông: đèn đá bị tuyết phủ, sáng yếu và chập chờn; không đom đóm, không ếch.
+// ---------- Day / night ----------
+// Night: multiply an indigo layer over the whole scene (~3 s transition), sparing the stone lantern's glow and moonlight spread on the water;
+// on top of the dark layer draw additively: lantern flame, moon reflection, fireflies. Frogs come sit on lotus leaves, puff vocal sacs croaking and rippling the water,
+// occasionally plop into the pond. Winter: stone lantern snow-covered, dim and flickering; no fireflies, no frogs.
 const NIGHT = { on: false, k: 0, lampI: 1, ff: [], frogs: [], frogT: 0 };
 const NIGHT_SET = {
   spring: { tint: '#3e4870', ff: 8, frogs: 2, lamp: 1, moon: '#dfe6ff' },
@@ -1498,16 +1502,16 @@ const glowTex = (() => {
   x.fillStyle = g; x.fillRect(0, 0, 64, 64); return new THREE.CanvasTexture(c);
 })();
 const glowScene = new THREE.Scene(), nightScene = new THREE.Scene();
-// Ếch: "Frog" by Thunk3D scanner (sketchfab.com/Diana123456), CC BY 4.0 -- đã giảm lưới, xoay thẳng trục (đầu +z,
-// dài 1 đơn vị, đáy y = 0) và tô lại màu thuỷ mặc theo đỉnh (lưng xanh rêu loang đốm mực, bụng ngà, mắt vàng)
+// Frog: "Frog" by Thunk3D scanner (sketchfab.com/Diana123456), CC BY 4.0 -- decimated, axis-aligned (head +z,
+// 1 unit long, bottom y = 0) and repainted in ink-wash per vertex (moss-green back mottled with ink spots, ivory belly, yellow eyes)
 let FROG = null;
 new GLTFLoader().loadAsync('/models/frog.glb').then(g => {
   let geo = null; g.scene.traverse(o => { if (o.isMesh && !geo) geo = o.geometry; });
-  // túi kêu: tìm cằm thật trên hình khối -- điểm nhô ra trước nhất ở dải dưới mõm, gần trục giữa
+  // vocal sac: find the real chin on the mesh -- the most forward point in the band below the snout, near the center axis
   const P = geo.attributes.position, v = new THREE.Vector3(); let sn = null, chin = null;
   for (let i = 0; i < P.count; i++) { v.fromBufferAttribute(P, i); if (!sn || v.z > sn.z) sn = v.clone(); }
   for (let i = 0; i < P.count; i++) { v.fromBufferAttribute(P, i); if (Math.abs(v.x - sn.x) < .035 && v.y < sn.y - .07 && v.y > sn.y - .16 && (!chin || v.z > chin.z)) chin = v.clone(); }
-  FROG = { geo, sac: new THREE.SphereGeometry(.065, 20, 14), chin: chin.add(new THREE.Vector3(0, .005, -.035)) };   // tâm hơi lùi vào trong cằm
+  FROG = { geo, sac: new THREE.SphereGeometry(.065, 20, 14), chin: chin.add(new THREE.Vector3(0, .005, -.035)) };   // center pulled slightly into the chin
 });
 overScene.add(new THREE.HemisphereLight('#fffaf0', '#6a7058', 1.6));
 { const l = new THREE.DirectionalLight('#fff8e8', 2.2); l.position.set(-24, 62, -20); overScene.add(l); }
@@ -1515,7 +1519,7 @@ function glow(size, col, y, additive = true) {
   const m = new THREE.Mesh(new THREE.PlaneGeometry(size, size), new THREE.MeshBasicMaterial({ map: glowTex, color: col, transparent: true, opacity: 0, blending: additive ? THREE.AdditiveBlending : THREE.NormalBlending, depthTest: false, depthWrite: false, toneMapped: false }));
   m.rotation.x = -Math.PI / 2; m.position.y = y; return m;
 }
-// lớp tối: nhân màu (dst * src), giá trị là màu hiển thị nên không đổi không gian màu
+// dark layer: multiply (dst * src), values are display colors so no color-space conversion
 const nightQ = new THREE.Mesh(quadGeo, new THREE.ShaderMaterial({
   vertexShader: QV, depthTest: false, depthWrite: false, transparent: true,
   blending: THREE.CustomBlending, blendEquation: THREE.AddEquation, blendSrc: THREE.DstColorFactor, blendDst: THREE.ZeroFactor,
@@ -1527,8 +1531,8 @@ const nightQ = new THREE.Mesh(quadGeo, new THREE.ShaderMaterial({
       float dl = length((vUv - uLampP) * a), dm = length((vUv - uMoonP) * a);
       float vig = smoothstep(1.0, .35, length((vUv - .5) * a * .85));
       vec3 c = uTint * mix(.72, 1.0, vig);
-      c += vec3(1.0, .78, .48) * uLamp * exp(-dl * dl / .01) * .9;      // quầng đèn đá ấm
-      c += vec3(.75, .82, 1.0) * uMoon * exp(-dm * dm / .03) * .18;     // ánh trăng loang nhẹ quanh bóng trăng
+      c += vec3(1.0, .78, .48) * uLamp * exp(-dl * dl / .01) * .9;      // warm stone lantern glow
+      c += vec3(.75, .82, 1.0) * uMoon * exp(-dm * dm / .03) * .18;     // faint moonlight spread around the moon reflection
       gl_FragColor = vec4(mix(vec3(1.0), min(c, vec3(1.0)), uK), 1.0);
     }`,
 }));
@@ -1536,8 +1540,8 @@ nightQ.frustumCulled = false; nightScene.add(nightQ);
 const lampFlame = glow(1.4, '#ffd590', SHORE_Y + .4), lampHalo = glow(7, '#ffb050', SHORE_Y + .3);
 { const [lx, lz] = d2w(...LANTERN_D, SHORE_Y + .4); lampFlame.position.x = lampHalo.position.x = lx; lampFlame.position.z = lampHalo.position.z = lz; }
 glowScene.add(lampHalo, lampFlame);
-// Bóng trăng: đĩa trăng tròn sắc nét trên mặt nước, có vệt biển tối mờ và quầng nhẹ; vẽ cộng sáng sau lớp tối.
-// Pháp tuyến sóng + vết khuấy + vân gió làm bóng trăng lay vỡ; vật nổi (lá sen, hoa, bờ) che bóng qua mặt nạ occRT.
+// Moon reflection: sharp round moon disc on the water, with faint dark maria and a soft halo; drawn additively after the dark layer.
+// Wave normals + stir marks + wind ripples make the moon reflection sway and break; floating objects (lotus leaves, flowers, shore) occlude it via the occRT mask.
 const occRT = new THREE.WebGLRenderTarget(4, 4);
 const moonP = pass(/* glsl */ `
   uniform sampler2D uWave, uStir, uOcc; uniform vec2 uWaveTexel, uMoonP, uWind; uniform float uK, uAspect, uR, uTime, uGust; uniform vec3 uCol; varying vec2 vUv;
@@ -1550,21 +1554,21 @@ const moonP = pass(/* glsl */ `
     vec2 n = vec2(hL - hR, hD - hU) * 9.0;
     vec2 wd = normalize(uWind + 1e-4), p = vUv * vec2(uAspect, 1.0), q = vec2(dot(p, wd), dot(p, vec2(-wd.y, wd.x)));
     float wn = noise(vec2(q.x * 60.0 - uTime * 2.5, q.y * 14.0)) - .5;
-    // phản chiếu nhạy với độ nghiêng mặt nước hơn khúc xạ
+    // reflection is more sensitive to surface tilt than refraction
     vec2 uv = vUv - disp * 1.4 - n * .045 + wd * wn * (.002 + .004 * uGust);
     vec2 d = (uv - uMoonP) * vec2(uAspect, 1.0);
     float r = length(d), px = .0016;
     float disc = 1.0 - smoothstep(uR - px, uR + px, r);
-    float mare = smoothstep(.45, .75, noise(d / uR * 2.0 + 4.0)) * .3 + smoothstep(.55, .85, noise(d / uR * 4.5 + 9.0)) * .14;   // biển tối trên mặt trăng
+    float mare = smoothstep(.45, .75, noise(d / uR * 2.0 + 4.0)) * .3 + smoothstep(.55, .85, noise(d / uR * 4.5 + 9.0)) * .14;   // dark maria on the moon
     float halo = exp(-max(r - uR, 0.0) * 30.0) * .28 + exp(-r * r / .03) * .08;
     float occ = texture(uOcc, vUv).a;
-    float limb = 1.0 - .22 * (r / uR) * (r / uR);                                          // mép trăng tối hơn tâm
+    float limb = 1.0 - .22 * (r / uR) * (r / uR);                                          // moon limb darker than the center
     vec3 c = uCol * (disc * (.85 - mare) * limb + halo) * (1.0 - occ) * uK;
     gl_FragColor = vec4(c, 1.0);
   }`, { uWave: { value: null }, uStir: { value: null }, uOcc: { value: occRT.texture }, uWaveTexel: { value: new THREE.Vector2(1 / WAVE_W, 1 / WAVE_H) }, uMoonP: { value: new THREE.Vector2(...d2uv(...MOON_D)) }, uWind: { value: new THREE.Vector2(-1, 0) }, uK: { value: 0 }, uAspect: { value: ASPECT }, uR: { value: .042 }, uTime: { value: 0 }, uGust: { value: 0 }, uCol: { value: new THREE.Color() } });
 moonP.m.blending = THREE.AdditiveBlending; moonP.m.transparent = true;
 const _sz = new THREE.Vector2();
-// vẽ phần đêm sau các lớp ngày: mặt nạ vật nổi -> lớp tối -> bóng trăng -> đèn, đom đóm
+// draw the night part after the day layers: floating-object mask -> dark layer -> moon reflection -> lantern, fireflies
 function renderNight(t, gust, wind) {
   renderer.getDrawingBufferSize(_sz);
   const w = Math.max(1, _sz.x >> 1), h = Math.max(1, _sz.y >> 1);
@@ -1579,7 +1583,7 @@ function renderNight(t, gust, wind) {
   renderer.render(glowScene, camera);
 }
 
-// Đom đóm: bay lượn chậm quanh bờ và mép hồ, nhấp nháy: tắt vài giây rồi sáng lên-tắt dần trong chưa tới 1 s
+// Fireflies: drift slowly around the shore and pond edge, blinking: off for a few seconds then light up and fade in under 1 s
 class Firefly {
   constructor() {
     const [dx, dy] = pondPt(rnd(0, TAU), rnd(.75, 1.25));
@@ -1604,9 +1608,9 @@ class Firefly {
   dispose() { for (const m of [this.m, this.h]) { glowScene.remove(m); m.geometry.dispose(); m.material.dispose(); } }
 }
 
-// Ếch: ngồi trên lá sen (trôi theo lá), kêu thành tràng 2-4 tiếng: túi kêu phồng xẹp, mỗi tiếng làm gợn mặt nước;
-// thỉnh thoảng nhảy tõm xuống nước rồi lặn mất, sau đó con khác leo lên lá khác.
-// chất liệu ếch: tô bậc như cá + bớt rực ngả màu giấy + viền mực theo dáng
+// Frog: sits on a lotus leaf (drifts with the leaf), croaks in runs of 2-4: vocal sac inflates/deflates, each croak ripples the water;
+// occasionally plops into the water and dives out of sight, then another one climbs onto another leaf.
+// frog material: toon-stepped like the fish + desaturated toward paper color + ink outline following the shape
 function frogMat(opts) {
   const m = new THREE.MeshToonMaterial({ gradientMap, transparent: true, ...opts });
   m.onBeforeCompile = sh => {
@@ -1627,26 +1631,26 @@ class Frog {
     this.mats = [frogMat({ vertexColors: true }), frogMat({ color: '#efe6c2' })];
     this.m = new THREE.Group(); this.m.scale.setScalar(1.05); this.seed = rnd(0, 9);
     const body = new THREE.Mesh(FROG.geo, this.mats[0]); body.renderOrder = 13; this.m.add(body);
-    this.sacM = new THREE.Mesh(FROG.sac, this.mats[1]); this.sacM.position.copy(FROG.chin); this.sacM.renderOrder = 13; this.m.add(this.sacM);   // túi kêu dưới cằm
+    this.sacM = new THREE.Mesh(FROG.sac, this.mats[1]); this.sacM.position.copy(FROG.chin); this.sacM.renderOrder = 13; this.m.add(this.sacM);   // vocal sac under the chin
     this.sh = glow(1.35, '#000', FLOAT_Y + .02, false); this.sh.renderOrder = 12.5;
     overScene.add(this.sh, this.m);
     this.state = 'sit'; this.a = 0; this.croakT = rnd(1, 5); this.croak = -1; this.jumpT = rnd(18, 45); this.dying = false;
   }
-  face() { const r = this.m.rotation.y; return [Math.sin(r), Math.cos(r)]; }   // đầu ếch hướng +z của mô hình
+  face() { const r = this.m.rotation.y; return [Math.sin(r), Math.cos(r)]; }   // frog head faces the model's +z
   update(dt, t, k) {
     const d = this.host;
-    this.m.scale.y = 1.05 * (1 + .025 * Math.sin(t * 3.1 + this.seed));   // thở
+    this.m.scale.y = 1.05 * (1 + .025 * Math.sin(t * 3.1 + this.seed));   // breathing
     if (this.state === 'sit') {
       const hr = d.m.rotation.z + this.ang;
       this.x = d.x + Math.cos(hr) * this.r; this.z = d.z + Math.sin(hr) * this.r; this.y = FLOAT_Y + .05;
-      this.m.rotation.y = this.rot - d.m.rotation.z;                       // xoay cùng lá
+      this.m.rotation.y = this.rot - d.m.rotation.z;                       // rotate with the leaf
       if (d.dying || d.state !== 'float') this.jumpT = 0;
       this.croakT -= dt;
       if (this.croakT < 0 && this.croak < 0) { this.croak = 0; this.n = 2 + Math.floor(Math.random() * 3); this.lastI = -1; }
       if (this.croak >= 0) {
         this.croak += dt; const i = Math.floor(this.croak / .32), u = (this.croak % .32) / .32;
         this.sacS = i < this.n ? Math.sin(Math.PI * u) : 0;
-        if (i !== this.lastI && i < this.n) { this.lastI = i; const [uu, vv] = w2uv(this.x, SURF_Y, this.z); splash(uu, vv, .005, .07); }   // mỗi tiếng kêu một vòng gợn
+        if (i !== this.lastI && i < this.n) { this.lastI = i; const [uu, vv] = w2uv(this.x, SURF_Y, this.z); splash(uu, vv, .005, .07); }   // one ripple ring per croak
         if (i >= this.n) { this.croak = -1; this.croakT = rnd(2, 7); this.sacS = 0; }
       }
       this.jumpT -= dt;
@@ -1657,13 +1661,13 @@ class Frog {
     } else if (this.state === 'jump') {
       this.u += dt / .55; const u = Math.min(1, this.u);
       this.x = lerp(this.from[0], this.to[0], u); this.z = lerp(this.from[1], this.to[1], u); this.y = FLOAT_Y + .05 + Math.sin(Math.PI * u) * 1.4;
-      this.m.rotation.x = -Math.sin(Math.PI * u) * .5;                     // chúi đầu khi bay
+      this.m.rotation.x = -Math.sin(Math.PI * u) * .5;                     // head pitches down while airborne
       if (u >= 1) { const [uu, vv] = w2uv(this.x, SURF_Y, this.z); splash(uu, vv, .008, .4); this.state = 'gone'; }
     } else { this.a -= dt / .5; this.y -= dt * .8; }
     if (this.state !== 'gone') this.a = Math.min(1, this.a + dt / 1.2);
     const o = clamp(this.a, 0, 1);
     for (const m of this.mats) m.opacity = o;
-    this.sacM.scale.setScalar(.2 + (this.sacS || 0) * 1.05);   // túi kêu phồng xẹp theo từng tiếng
+    this.sacM.scale.setScalar(.2 + (this.sacS || 0) * 1.05);   // vocal sac inflates/deflates with each croak
     this.m.position.set(this.x, this.y, this.z);
     this.sh.position.set(this.x + .12, FLOAT_Y + .02, this.z + .17); this.sh.material.opacity = o * .35 * (this.state === 'jump' ? .5 : 1);
   }
@@ -1676,8 +1680,8 @@ class Frog {
 
 function setNight(on) {
   NIGHT.on = on;
-  const b = document.getElementById('night'); if (b) { b.textContent = on ? '☀ Ngày' : '☾ Đêm'; b.classList.toggle('on', on); }
-  // bướm, chuồn chuồn đi ngủ; sáng ra bay lại
+  const b = document.getElementById('night'); if (b) { b.textContent = on ? '☀ Day' : '☾ Night'; b.classList.toggle('on', on); }
+  // butterflies, dragonflies go to sleep; fly again in the morning
   if (on) for (const b of insects) b.dying = true;
   else if (season && !insects.some(b => !b.dying)) insects.push(...SEASON_INSECTS[season]());
 }
@@ -1687,18 +1691,18 @@ function updateNight(dt, t) {
   const k = smooth01(N.k), U = nightQ.material.uniforms;
   U.uK.value = k;
   const tc = new THREE.Color(set.tint).convertLinearToSRGB(); U.uTint.value.lerp(new THREE.Vector3(tc.r, tc.g, tc.b), 1 - Math.exp(-dt * 2));
-  // đèn đá: lửa lay nhẹ; mùa đông bị tuyết phủ, yếu và chập chờn, có lúc gần tắt
+  // stone lantern: flame sways gently; in winter snow-covered, weak and flickering, sometimes nearly out
   const fl = season === 'winter' ? clamp(.55 + .3 * Math.sin(t * 7.3) * Math.sin(t * 3.1 + 1) - (Math.random() < .03 ? .45 : 0), .08, 1) : .9 + .06 * Math.sin(t * 9) + .04 * Math.sin(t * 23.7);
   N.lampI = lerp(N.lampI, fl * set.lamp, season === 'winter' ? .25 : .15);
   U.uLamp.value = N.lampI;
   lampFlame.material.opacity = k * N.lampI; lampHalo.material.opacity = k * N.lampI * .45;
   lampFlame.scale.setScalar(.85 + .15 * N.lampI);
-  // đom đóm
+  // fireflies
   const want = N.on ? set.ff : 0, alive = N.ff.filter(f => !f.dying);
   if (alive.length < want && Math.random() < dt * 4) N.ff.push(new Firefly());
   if (alive.length > want) alive[0].dying = true;
   for (let i = N.ff.length - 1; i >= 0; i--) { const f = N.ff[i]; f.update(dt, t, k); if (f.dying && f.fade <= 0) { f.dispose(); N.ff.splice(i, 1); } }
-  // ếch: lên lá sen còn trống khi trời tối
+  // frogs: climb onto free lotus leaves when it gets dark
   const wantF = N.on && FROG ? set.frogs : 0, liveF = N.frogs.filter(f => f.state === 'sit' && !f.dying);
   N.frogT -= dt;
   if (liveF.length < wantF && N.frogT < 0) {
@@ -1711,7 +1715,7 @@ function updateNight(dt, t) {
 }
 
 let layers = [], season = null, sprites = {}, busy = false, pending = null;
-const drifters = [];                                 // vật rơi + vật trôi
+const drifters = [];                                 // falling + floating objects
 const spriteMesh = (c, size) => {
   const m = new THREE.Mesh(new THREE.PlaneGeometry(size, size * c.height / c.width), new THREE.MeshBasicMaterial({ map: sharedTex(c), transparent: true, depthWrite: false, depthTest: false, toneMapped: false, opacity: 0 }));
   m.rotation.x = -Math.PI / 2; return m;
@@ -1737,7 +1741,7 @@ async function setSeason(key) {
   for (const L of layers) L.fade = -1;
   const layer = { meshes: [floorM, shoreM, shadowM, treeM, ...plants.grass.map(q => q.m)], fade: 1, a: 0, grass: plants.grass };
   layers.push(layer);
-  // vật trôi theo mùa cũ: tan dần; mùa mới: rải lá sen, băng
+  // previous season's floating objects: fade out; new season: scatter lotus leaves, ice
   for (const d of drifters) d.dying = true;
   sprites = sp;
   buildSlots(key, layer);
@@ -1754,7 +1758,7 @@ async function setSeason(key) {
   if (pending && pending !== key) { const k = pending; pending = null; setSeason(k); } else pending = null;
 }
 function addFloat(c, size, k, ice = false, flower = false) {
-  // rải không chồng lên nhau: thử nhiều vị trí, bỏ chỗ chạm vào lá/hoa đang có
+  // scatter without overlap: try many positions, skip spots touching existing leaves/flowers
   const rad = size * .44;
   let x, z;
   for (let tries = 0; tries < 40; tries++) {
@@ -1765,21 +1769,21 @@ function addFloat(c, size, k, ice = false, flower = false) {
   const m = spriteMesh(c, size); m.position.set(x, FLOAT_Y, z); m.rotation.z = rnd(0, TAU); m.renderOrder = ice ? 11 : 12; overScene.add(m);
   drifters.push({ m, state: 'float', x, z, hx: x, hz: z, y: FLOAT_Y, vx: 0, vz: 0, spin: rnd(-.05, .05), a: 0, life: Infinity, big: true, ice, flower, rad });
 }
-// ---------- Hoa/lá trên cây: mỗi bông là một sprite riêng, rụng thật rồi mọc lại ----------
-const SUN_SH = [24 / 62, 20 / 62];                   // bóng lệch theo hướng nắng, trên mỗi đơn vị độ cao
+// ---------- Flowers/leaves on the tree: each one its own sprite, really falls then regrows ----------
+const SUN_SH = [24 / 62, 20 / 62];                   // shadow offset along the sun direction, per unit of height
 const slots = [];
 const PX_TREE = () => viewAt(TREE_Y).w / DW;
-// Lá/hoa mọc ở các mắt trên cành con. ang: hướng phiến lá từ điểm bám (toạ độ thiết kế).
+// Leaves/flowers grow at nodes on the twigs. ang: blade direction from the attachment point (design coords).
 function slotPlan(key) {
   const r = Ink.R(key === 'spring' ? 77 : 78), out = [];
   for (const tw of twigPlan(key)) {
     for (const t of key === 'autumn' ? (tw.main ? [.3, .55, .8, 1] : [.5, 1]) : [.55, 1]) {
       const p = Ink.bez(tw.c, t), q = Ink.bez(tw.c, Math.max(0, t - .03)), a = Math.atan2(p[1] - q[1], p[0] - q[0]);
       if (key === 'autumn') {
-        // phong: lá mọc đối từng cặp, đầu cành có thêm một lá
+        // maple: leaves in opposite pairs, one extra leaf at the twig tip
         for (const sd of t === 1 ? [-1, 0, 1] : [-1, 1]) out.push({ dx: p[0], dy: p[1], ang: a + sd * (.95 + r() * .45) + (r() - .5) * .25, size: 10 + r() * 6, v: Math.floor(r() * 6) });
       } else {
-        // anh đào: chùm 3-4 bông trên cuống dài, mọc từ một mắt
+        // cherry: clusters of 3-4 blossoms on long stalks, from one node
         const n = 3 + Math.floor(r() * 2);
         for (let k = 0; k < n; k++) out.push({ dx: p[0], dy: p[1], ang: a + (k - (n - 1) / 2) * .6 + (r() - .5) * .3, size: 5.5 + r() * 3.5, v: Math.floor(r() * 3) });
       }
@@ -1787,7 +1791,7 @@ function slotPlan(key) {
   }
   return out;
 }
-// Sprite có gốc (pivot) ở đầu cuống: lá xoay, rung quanh chỗ bám vào cành.
+// Sprite pivots at the stem tip: the leaf rotates and flutters around where it attaches to the branch.
 const STEM = { spring: { r: 10, w: 30, h: 36, pivot: 34, blade: 20 }, autumn: { r: 15, w: 40, h: 40, pivot: 28.3, blade: 8.3 } };
 function stemSprite(c, key, size, scale = 1) {
   const st = STEM[key], k = size / st.r * PX_TREE() * scale, w = st.w * k, h = st.h * k;
@@ -1795,7 +1799,7 @@ function stemSprite(c, key, size, scale = 1) {
   const m = new THREE.Mesh(g, new THREE.MeshBasicMaterial({ map: sharedTex(c), transparent: true, depthWrite: false, depthTest: false, toneMapped: false, opacity: 0 }));
   m.rotation.x = -Math.PI / 2; return m;
 }
-// góc thiết kế (x phải, y xuống) -> rotation.z của plane nằm ngang (trục +y cục bộ là hướng phiến lá)
+// design angle (x right, y down) -> rotation.z of the horizontal plane (local +y axis is the blade direction)
 const designAngToRotZ = (a) => Math.atan2(-Math.cos(a), -Math.sin(a));
 const shadowMat = (c) => new THREE.MeshBasicMaterial({ map: sharedTex(c), color: 0x000000, transparent: true, depthWrite: false, depthTest: false, toneMapped: false, opacity: 0 });
 function buildSlots(key, layer) {
@@ -1809,7 +1813,7 @@ function buildSlots(key, layer) {
     slots.push({ ...p, rot: rz, m, sh, key, layer, state: 'on', grow: 1, timer: 0, x: 0, z: 0, seed: Math.random() * 9 });
   }
 }
-// Cùng công thức với shader đung đưa của cây, để bông hoa đi theo cành.
+// Same formula as the tree's sway shader, so blossoms follow the branches.
 function slotSway(s, t, gust, sway) {
   const u = s.dx / DW, v = 1 - s.dy / DH, d2 = (u - 1) ** 2 + (v - 1) ** 2;
   const w = (Math.sin(t * 1.3 + u * 5) * .6 + Math.sin(t * 2.3 + v * 7) * .4) * gust;
@@ -1817,7 +1821,7 @@ function slotSway(s, t, gust, sway) {
 }
 function detach(s) {
   s.state = 'gone'; s.timer = s.key === 'spring' ? rnd(10, 20) : rnd(12, 24);
-  // rơi từ giữa phiến lá/bông hoa, không phải từ điểm bám
+  // fall from the middle of the leaf blade/blossom, not from the attachment point
   const st = STEM[s.key], off = st.blade * s.size / st.r * PX_TREE() * .75;
   const x = s.x + Math.cos(s.ang) * off, z = s.z + Math.sin(s.ang) * off, worldSize = st.w * s.size / st.r * PX_TREE();
   if (s.key === 'spring') {
@@ -1830,7 +1834,7 @@ function spawnFall(c, size, x, y, z, kind, rot = rnd(0, TAU)) {
   const m = spriteMesh(c, size); m.position.set(x, y, z); m.rotation.z = rot; m.renderOrder = kind === 'snow' ? 52 : 50; overScene.add(m);
   let sh = null;
   if (kind !== 'snow') { sh = new THREE.Mesh(m.geometry, shadowMat(c)); sh.rotation.x = -Math.PI / 2; sh.renderOrder = 27; overScene.add(sh); }
-  // [tốc độ lật, độ trượt ngang, hệ số rơi]: cánh hoa lật nhanh, lá phong lắc lư như con lắc
+  // [flip speed, lateral drift, fall factor]: petals flip fast, maple leaves rock like a pendulum
   const P = { petal: [rnd(5, 9), .55, 1.0], bloom: [rnd(2.5, 4), .8, 1.1], leaf: [rnd(1.6, 3), 2.4, 1.4], snow: [0, 0, 1] }[kind];
   drifters.push({ m, sh, state: 'fall', kind, size, x, y, z, vx: 0, vz: 0, vy: -.3, phi: rnd(0, TAU), phiRate: P[0] * (Math.random() < .5 ? -1 : 1), glide: P[1], fallK: P[2], dir: rnd(0, TAU), spin: rnd(-1.5, 1.5), rot, a: kind === 'snow' ? 0 : 1, life: Infinity, snow: kind === 'snow', flutter: rnd(0, 6) });
 }
@@ -1839,11 +1843,11 @@ function spawnSnow() {
   spawnFall(sprites.fall[0], rnd(.25, .55), x, y, z, 'snow');
 }
 
-// ---------- Côn trùng: chuồn chuồn, bướm ----------
+// ---------- Insects: dragonflies, butterflies ----------
 function cv(w, h, draw) { const c = document.createElement('canvas'); c.width = w; c.height = h; draw(c.getContext('2d'), w, h); return c; }
 const INSECT = {};
 {
-  // Cánh chuồn chuồn: chĩa sang phải, gốc ở x = 0. Gân dọc, gân ngang, chấm cánh (pterostigma).
+  // Dragonfly wing: pointing right, base at x = 0. Longitudinal veins, cross veins, wing spot (pterostigma).
   INSECT.dWing = cv(256, 56, (x, w, h) => {
     x.translate(0, h / 2);
     const path = () => { x.beginPath(); x.moveTo(2, -3); x.bezierCurveTo(60, -24, 200, -22, 250, -6); x.bezierCurveTo(254, 0, 250, 8, 236, 10); x.bezierCurveTo(160, 20, 50, 16, 2, 4); x.closePath(); };
@@ -1857,7 +1861,7 @@ const INSECT = {};
     path(); x.strokeStyle = 'rgba(20,20,20,.8)'; x.lineWidth = 1.6; x.stroke();
     x.fillStyle = '#1a1a1a'; x.fillRect(212, -11, 15, 7);
   });
-  // Thân chuồn chuồn, đầu ở trên: mắt kép to, ngực, bụng 9 đốt.
+  // Dragonfly body, head up: big compound eyes, thorax, 9-segment abdomen.
   const dBody = (abd, tip) => cv(48, 200, (x, w) => {
     x.translate(w / 2, 0);
     x.fillStyle = '#1b1b1b'; x.beginPath(); x.ellipse(-8, 14, 9, 10, 0, 0, TAU); x.ellipse(8, 14, 9, 10, 0, 0, TAU); x.fill();
@@ -1866,7 +1870,7 @@ const INSECT = {};
     for (let i = 0; i < 9; i++) { const y = 62 + i * 15, wd = 6 - i * .35; x.fillStyle = i > 6 ? tip : abd; x.beginPath(); x.ellipse(0, y, wd, 8.5, 0, 0, TAU); x.fill(); x.strokeStyle = 'rgba(15,15,15,.8)'; x.lineWidth = 1.2; x.stroke(); }
   });
   INSECT.dBody = { blue: dBody('#8fa6b6', '#1b1b1b'), red: dBody('#c2402a', '#7a1d10') };
-  // Cánh bướm phải (cánh trước + cánh sau), gốc ở x = 0.
+  // Right butterfly wing (forewing + hindwing), base at x = 0.
   const bWing = (kind) => cv(160, 170, (x) => {
     x.translate(0, 74);
     const fore = () => { x.beginPath(); x.moveTo(0, -4); x.bezierCurveTo(30, -70, 110, -76, 150, -56); x.bezierCurveTo(150, -20, 110, 4, 0, 6); x.closePath(); };
@@ -1894,7 +1898,7 @@ const INSECT = {};
   });
 }
 function plane(c, w, h, pivot = 0) {
-  const g = new THREE.PlaneGeometry(w, h); if (pivot) g.translate(w / 2, 0, 0);   // pivot: gốc cánh ở mép trái
+  const g = new THREE.PlaneGeometry(w, h); if (pivot) g.translate(w / 2, 0, 0);   // pivot: wing base at the left edge
   return new THREE.Mesh(g, new THREE.MeshBasicMaterial({ map: sharedTex(c), transparent: true, depthWrite: false, depthTest: false, toneMapped: false, side: THREE.DoubleSide, opacity: 0 }));
 }
 const insects = [];
@@ -1913,10 +1917,10 @@ class Insect {
     this.flat.add(m); this.shFlat.add(s);
     if (wing) this.wings.push({ m, s, side: x < 0 ? -1 : 1, base: rotZ });
   }
-  // proj: bề rộng cánh nhìn từ trên (1 = xòe phẳng, ~0 = dựng đứng khi vỗ)
+  // proj: wing width seen from above (1 = flat open, ~0 = upright while flapping)
   wing(i, proj, alpha, rotZ) { const W = this.wings[i]; for (const o of [W.m, W.s]) { o.scale.x = W.side * proj; o.rotation.z = rotZ ?? W.base; } W.m.userData.alpha = alpha; }
   place() {
-    // Ảnh vẽ đầu hướng lên: quay sao cho đầu theo hướng bay h trên mặt phẳng XZ.
+    // Image is drawn head-up: rotate so the head points along flight heading h on the XZ plane.
     const ry = -this.h - Math.PI / 2;
     this.root.position.set(this.x, this.y, this.z); this.root.rotation.y = ry;
     this.shRoot.position.set(this.x + SUN_SH[0] * this.y, SHORE_Y + .14, this.z + SUN_SH[1] * this.y); this.shRoot.rotation.y = ry;
@@ -1942,7 +1946,7 @@ class Dragonfly extends Insect {
     const p = hoverPoint();
     Object.assign(this, { x: p.x, z: p.z, y: p.y, h: rnd(0, TAU), hT: null, state: 'hover', T: rnd(.5, 1.5), el: 0, flap: rnd(0, 6) });
   }
-  // Tập tính: lao thẳng -> khựng lại lơ lửng -> đổi hướng gắt; đậu lá sen/đá; chúc xuống chấm nước.
+  // Behavior: dart straight -> stop and hover -> sharp turn; perch on lotus leaves/rocks; dip down to touch the water.
   next() {
     const r = Math.random();
     if (r < .55) this.dartTo(hoverPoint());
@@ -1953,7 +1957,7 @@ class Dragonfly extends Insect {
     this.from = [this.x, this.z, this.y]; this.to = [p.x, p.z, p.y]; this.perchNext = p.perch || null;
     this.hT = Math.atan2(p.z - this.z, p.x - this.x);
     this.dur = clamp(Math.hypot(p.x - this.x, p.z - this.z) / rnd(16, 24), .25, 1.4);
-    this.state = 'turn'; this.el = 0;                                     // xoay người trước, rồi mới lao
+    this.state = 'turn'; this.el = 0;                                     // turn the body first, then dart
   }
   update(dt, t) {
     this.life(dt); this.el += dt; this.T -= dt;
@@ -1968,7 +1972,7 @@ class Dragonfly extends Insect {
       }
     } else if (this.state === 'hover') {
       this.x += Math.sin(t * 7.3 + this.seedA) * .3 * dt; this.z += Math.cos(t * 6.1 + this.seedB) * .3 * dt; this.y += Math.sin(t * 3) * .12 * dt;
-      if (Math.random() < dt * .8) this.hT = this.h + rnd(-1.2, 1.2);          // giật mình đổi hướng tại chỗ
+      if (Math.random() < dt * .8) this.hT = this.h + rnd(-1.2, 1.2);          // startled heading change in place
       if (this.T < 0) this.next();
     } else if (this.state === 'perch') {
       if (this.perch.d) { if (this.perch.d.dying) this.T = -1; this.x = this.perch.d.x; this.z = this.perch.d.z; }
@@ -1981,7 +1985,7 @@ class Dragonfly extends Insect {
       if (k >= 1) { this.state = 'hover'; this.T = rnd(.3, 1); }
     }
     if (this.hT !== null) this.h += angDiff(this.hT, this.h) * (1 - Math.exp(-dt * 20));
-    // Cánh: bay thì đập ~27 Hz nên chỉ thấy vệt mờ; đậu thì xòe phẳng, rõ nét, hơi chúc về trước.
+    // Wings: in flight they beat ~27 Hz so only a blur shows; perched they spread flat, crisp, tilted slightly forward.
     const flying = this.state !== 'perch';
     this.flap += dt * TAU * 27;
     this.wings.forEach((W, i) => {
@@ -2015,8 +2019,8 @@ class Butterfly extends Insect {
     Object.assign(this, { x: p.x, z: p.z, y: p.y, vx: 0, vz: 0, vy: 0, h: rnd(0, TAU), course: rnd(0, TAU), yaw: 0, bank: 0,
       ph: rnd(0, 6), freq: rnd(4.5, 6), beats: 4, yT: rnd(3.5, 8), glideT: 0, state: 'fly', T: rnd(5, 10), target: null });
   }
-  // Bướm thật không bay theo đường cong mượt: mỗi lần đập cánh xuống là một cú đẩy lệch hướng
-  // ngẫu nhiên, giữa các nhịp trọng lực kéo xuống -> đường bay giật zic-zac, nhấp nhô.
+  // Real butterflies don't fly in smooth curves: each downstroke is a push in a random
+  // direction, gravity pulls down between beats -> jerky zigzag, bobbing flight path.
   update(dt, t) {
     this.life(dt); this.T -= dt;
     let elev, sweep = 0;
@@ -2026,17 +2030,17 @@ class Butterfly extends Insect {
         this.vy -= .9 * dt;
       } else {
         const before = Math.sin(this.ph);
-        this.ph += dt * TAU * this.freq * (before > 0 ? .85 : 1.25);   // nâng chậm, đập nhanh
-        if (before > 0 && Math.sin(this.ph) <= 0) {                     // bắt đầu cú đập xuống
+        this.ph += dt * TAU * this.freq * (before > 0 ? .85 : 1.25);   // slow upstroke, fast downstroke
+        if (before > 0 && Math.sin(this.ph) <= 0) {                     // downstroke begins
           const dir = this.course + rnd(-.8, .8), f = this.state === 'approach' ? rnd(.8, 1.4) : rnd(1.2, 2.2);
-          this.vx += Math.cos(dir) * f; this.vz += Math.sin(dir) * f; this.vy += clamp(.55 + (this.yT - this.y) * .2, .08, 1.4) + rnd(-.15, .15);   // lực nâng ~ trọng lực, kéo về độ cao mục tiêu
+          this.vx += Math.cos(dir) * f; this.vz += Math.sin(dir) * f; this.vy += clamp(.55 + (this.yT - this.y) * .2, .08, 1.4) + rnd(-.15, .15);   // lift ~ gravity, pulled toward the target height
           this.yaw += rnd(-.45, .45);
           if (--this.beats <= 0) { this.beats = 3 + Math.floor(Math.random() * 6); if (Math.random() < .55) this.glideT = rnd(.25, .7); }
         }
-        elev = .55 + .9 * Math.sin(this.ph);                            // góc nâng cánh: -0.35 .. 1.45 rad
-        sweep = .16 * Math.cos(this.ph);                                // cánh quét về trước khi đập xuống
+        elev = .55 + .9 * Math.sin(this.ph);                            // wing elevation angle: -0.35 .. 1.45 rad
+        sweep = .16 * Math.cos(this.ph);                                // wings sweep forward on the downstroke
       }
-      // hướng muốn bay: trôi chậm, đổi gắt thỉnh thoảng; tránh ra khỏi khung; tìm hoa
+      // desired heading: slow drift, occasional sharp changes; steer away from the frame edge; seek flowers
       this.course += (Math.sin(t * .7 + this.seedA) * .5 + Math.sin(t * 1.9 + this.seedB) * .35) * dt;
       if (Math.random() < dt * .25) this.course += rnd(-1.4, 1.4);
       if (Math.random() < dt * .15) this.yT = rnd(3, 8.5);
@@ -2052,13 +2056,13 @@ class Butterfly extends Insect {
           if (dd < .55 && Math.abs(this.y - p.y) < .9) { this.state = 'land'; this.T = rnd(3, 8); this.vx = this.vz = this.vy = 0; }
         }
       } else if (this.T < 0) { this.target = flowerTarget(); this.state = this.target ? 'approach' : 'fly'; this.T = this.target ? 10 : rnd(5, 10); }
-      // trọng lực + lực cản
+      // gravity + drag
       this.vy -= 2.6 * dt;
       const kd = Math.exp(-dt * 2.1); this.vx *= kd; this.vz *= kd; this.vy *= Math.exp(-dt * 1.4);
       this.x += this.vx * dt; this.z += this.vz * dt; this.y += this.vy * dt;
       if (this.y < 2.4) { this.y = 2.4; this.vy = Math.abs(this.vy) * .5 + 1; }
       if (this.y > TREE_Y + .6) { this.y = TREE_Y + .6; this.vy = -Math.abs(this.vy) * .3; }
-      // thân quay theo hướng chuyển động, lắc nhẹ theo từng cú đập; nghiêng người khi rẽ
+      // body turns to the motion direction, wobbles slightly with each stroke; banks when turning
       const sp = Math.hypot(this.vx, this.vz), want = sp > .3 ? Math.atan2(this.vz, this.vx) : this.h;
       this.yaw *= Math.exp(-dt * 5);
       const dh = angDiff(want + this.yaw, this.h) * (1 - Math.exp(-dt * 6));
@@ -2066,17 +2070,17 @@ class Butterfly extends Insect {
       this.bank = lerp(this.bank, clamp(dh / Math.max(dt, 1e-3) * .12, -.45, .45), 1 - Math.exp(-dt * 6));
     } else {
       const p = this.target.pos(); this.x = p.x; this.z = p.z; this.y = p.y + .12;
-      // đậu: cánh khép dựng đứng, thỉnh thoảng mới mở ra phơi
+      // perched: wings closed upright, opened to bask only occasionally
       this.ph += dt * .8; elev = 1.2 + .45 * Math.sin(this.ph) + (Math.sin(t * .37 + this.seedA) > .7 ? -.7 : 0);
       if (this.T < 0 || !this.target.ok()) { this.state = 'fly'; this.T = rnd(6, 12); this.vy = 3; this.course = this.h + rnd(-1.5, 1.5); this.beats = 4; }
       this.bank = 0;
     }
     const proj = Math.max(.05, Math.cos(elev));
     this.wings.forEach((W, i) => {
-      // cánh phía trong vòng rẽ dựng hơn cánh ngoài
+      // wing on the inside of the turn more upright than the outer one
       const pr = clamp(proj * (1 + W.side * this.bank), .04, 1);
       this.wing(i, pr, 1, W.side * sweep);
-      W.m.material.color.setScalar(.7 + .3 * pr);                       // cánh dựng lên thì tối đi
+      W.m.material.color.setScalar(.7 + .3 * pr);                       // wings darken as they rise upright
     });
     this.place();
   }
@@ -2089,13 +2093,13 @@ const SEASON_INSECTS = {
   winter: () => [],
 };
 
-// ---------- Thức ăn: hạt 3D tung từ tay, rơi xuống nước, nổi rồi ngấm nước chìm dần ----------
+// ---------- Food: 3D pellets tossed by hand, fall into the water, float then soak and slowly sink ----------
 const pelletGeo = new THREE.SphereGeometry(.24, 14, 10); pelletGeo.scale(1, .62, 1);
 const pelletMats = ['#6e4421', '#7d4d24', '#8f5c2c', '#5c3a1d', '#a0662e'].map(c => new THREE.MeshToonMaterial({ color: c, gradientMap }));
 { const h = new THREE.HemisphereLight('#fffaf0', '#8a8370', 1.2), d = new THREE.DirectionalLight('#fff6e6', 2); d.position.set(-24, 62, -20); overScene.add(h, d); }
 const DROP = cv(16, 16, (x) => { const g = x.createRadialGradient(8, 8, 0, 8, 8, 7); g.addColorStop(0, 'rgba(252,250,244,1)'); g.addColorStop(.6, 'rgba(236,232,220,.8)'); g.addColorStop(1, 'rgba(236,232,220,0)'); x.fillStyle = g; x.fillRect(0, 0, 16, 16); });
 const drops = [];
-// Giọt nước bắn lên khi hạt rơi xuống hoặc cá đớp.
+// Water droplets splash up when a pellet hits the water or a fish gulps.
 function droplets(x, z, n, power) {
   for (let i = 0; i < n; i++) {
     const m = new THREE.Mesh(new THREE.PlaneGeometry(1, 1), new THREE.MeshBasicMaterial({ map: sharedTex(DROP), transparent: true, depthWrite: false, depthTest: false, toneMapped: false }));
@@ -2114,7 +2118,7 @@ function tossFood(x, z) {
     foods.push({ m, state: 'air', delay: rnd(0, .18), x: sx, y: y0, z: sz, vx: (tx - sx) / T, vz: (tz - sz) / T, vy: (.5 * g * T * T - y0) / T, g, t: 0, soak: rnd(10, 16), spin: rnd(-4, 4), ph: rnd(0, 6), px: 0, pz: 0 });
   }
 }
-// Cá đớp: hút các hạt trước miệng vào, bắn nước, gợn, cá khựng lại một chút.
+// Fish gulp: suck in pellets in front of the mouth, splash, ripple, fish pauses briefly.
 function gulp(fish) {
   const [hx, hz] = fish.head(); let n = 0;
   for (const f of foods) {
@@ -2136,13 +2140,13 @@ function updateFood(dt, t, wx, wz, gust) {
       f.vy -= f.g * dt; f.x += f.vx * dt; f.z += f.vz * dt; f.y += f.vy * dt;
       m.rotation.x += f.spin * dt; m.rotation.z += f.spin * .7 * dt;
       if (f.y <= 0) {
-        // chạm nước: chuyển sang lớp dưới nước để bị sóng khúc xạ, có bóng in xuống đáy
+        // hit the water: move to the underwater layer to be refracted by waves, casting a shadow on the bottom
         f.y = -.04; f.state = 'float'; overScene.remove(m); waterScene.add(m);
         const [u, v] = w2uv(f.x, SURF_Y, f.z); splash(u, v, .004, .16); droplets(f.x, f.z, 2, .45);
       }
     } else if (f.state === 'float') {
       f.t += dt;
-      // trôi theo gió, bị mũi cá đẩy, các hạt không chồng lên nhau
+      // drift with the wind, pushed by fish snouts, pellets don't overlap
       f.px = lerp(f.px, wx * gust * .35, dt); f.pz = lerp(f.pz, wz * gust * .35, dt);
       for (const k of fish) { if (k.y < -1.5) continue; const [hx, hz] = k.head(), ddx = f.x - hx, ddz = f.z - hz, d = Math.hypot(ddx, ddz); if (d < 1.8 && d > 0) { f.px += ddx / d * (1.8 - d) * dt * 3; f.pz += ddz / d * (1.8 - d) * dt * 3; } }
       for (const o of foods) { if (o === f || o.state !== 'float') continue; const ddx = f.x - o.x, ddz = f.z - o.z, d = Math.hypot(ddx, ddz); if (d < .4 && d > 0) { f.x += ddx / d * (.4 - d) * .5; f.z += ddz / d * (.4 - d) * .5; } }
@@ -2155,7 +2159,7 @@ function updateFood(dt, t, wx, wz, gust) {
       f.y -= .32 * dt; m.rotation.x += f.spin * .1 * dt;
       if (f.y < FLOOR_Y + 1) f.state = 'gone';
     } else if (f.state === 'suck') {
-      // hút vào miệng trong ~0.13 s
+      // sucked into the mouth in ~0.13 s
       f.k += dt / .13; const [hx, hz] = f.fish.head();
       f.x = lerp(f.x, hx, Math.min(1, f.k)); f.z = lerp(f.z, hz, Math.min(1, f.k)); f.y = lerp(f.y, f.fish.y + .2, Math.min(1, f.k));
       m.scale.multiplyScalar(Math.exp(-dt * 6));
@@ -2171,7 +2175,7 @@ function updateFood(dt, t, wx, wz, gust) {
   }
 }
 
-// ---------- Tương tác ----------
+// ---------- Interaction ----------
 const ray = new THREE.Raycaster(), surf = new THREE.Plane(new THREE.Vector3(0, 1, 0), 0), hit = new THREE.Vector3();
 let pointer = null, lastP = null, ptrUV = new THREE.Vector2(.5, .5), prevUV = new THREE.Vector2(.5, .5), hasPtr = false;
 function pickEvt(e) {
@@ -2198,7 +2202,7 @@ let auto = true, autoT = 0;
 document.getElementById('auto').addEventListener('click', (e) => { auto = !auto; e.currentTarget.classList.toggle('on', auto); autoT = 0; });
 document.getElementById('night').addEventListener('click', () => { auto = false; document.getElementById('auto').classList.remove('on'); setNight(!NIGHT.on); });
 
-// ---------- Vòng lặp ----------
+// ---------- Loop ----------
 await setSeason('spring');
 const timer = new THREE.Timer(); timer.connect(document);
 const ORDER = ['spring', 'summer', 'autumn', 'winter'];
@@ -2207,17 +2211,17 @@ let windA = Math.PI * .85, spawnAcc = 0;
 renderer.setAnimationLoop((ts) => {
   timer.update(ts);
   const dt = Math.min(timer.getDelta(), 1 / 30), t = timer.getElapsed(), S = SEASONS[season];
-  // tự chuyển: mỗi mùa một ngày rồi một đêm, sáng ra sang mùa sau
+  // auto-cycle: each season one day then one night, next season in the morning
   if (auto && !busy) { autoT += dt; if (!NIGHT.on && autoT > 24) { autoT = 0; setNight(true); } else if (NIGHT.on && autoT > 16) { autoT = 0; setNight(false); setSeason(ORDER[(ORDER.indexOf(season) + 1) % 4]); } }
 
-  // Gió: hướng chính từ góc cây (phải trên) thổi xuống trái dưới, giật từng cơn.
+  // Wind: main direction from the tree corner (top right) blowing toward bottom left, in gusts.
   const gust = updateWind(dt, t);
   windA = Math.PI * .85 + Math.sin(t * .05) * .35 + WIND.dirOff;
-  const wind = new THREE.Vector2(Math.cos(windA), Math.sin(windA));    // toạ độ thiết kế: x phải, y xuống
-  // hướng gió trong world (x, z) trùng với (x, y) thiết kế
+  const wind = new THREE.Vector2(Math.cos(windA), Math.sin(windA));    // design coords: x right, y down
+  // wind direction in world (x, z) matches design (x, y)
   const wx = wind.x, wz = wind.y;
 
-  // Lớp tranh: mờ dần vào/ra khi đổi mùa
+  // Painted layers: fade in/out on season change
   for (let i = layers.length - 1; i >= 0; i--) {
     const L = layers[i]; L.a = clamp(L.a + L.fade * dt / 1.6, 0, 1);
     for (const m of L.meshes) {
@@ -2229,10 +2233,10 @@ renderer.setAnimationLoop((ts) => {
 
   updatePlants(dt, t, wind);
 
-  // Vật rơi theo gió
+  // Falling objects driven by wind
   if (S.fall === 'snow' && sprites.fall) { spawnAcc += dt * S.rate; while (spawnAcc > 1) { spawnAcc--; spawnSnow(); } }
 
-  // Hoa/lá trên cây: đi theo cành, gió giật thì rụng, rồi nhú lại từ từ.
+  // Flowers/leaves on the tree: follow the branches, gusts make them fall, then they slowly regrow.
   for (let i = slots.length - 1; i >= 0; i--) {
     const s = slots[i], L = s.layer;
     const k = slotSway(s, t, gust, 2.4), [bx, bz] = d2w(s.dx, s.dy, TREE_Y);
@@ -2243,7 +2247,7 @@ renderer.setAnimationLoop((ts) => {
     } else if (s.state === 'gone') { if ((s.timer -= dt) < 0) { s.state = 'grow'; s.grow = 0; } }
     else if ((s.grow += dt / 4) >= 1) { s.grow = 1; s.state = 'on'; }
     const g = s.state === 'gone' ? 0 : s.state === 'grow' ? s.grow * s.grow * (3 - 2 * s.grow) : 1;
-    // lá rung quanh cuống, thỉnh thoảng lật mặt khi gió giật
+    // leaves flutter around the stem, occasionally flipping over in gusts
     const flut = Math.sin(t * (3.1 + s.seed * .3) + s.seed * 7) * (.06 + .16 * gust) + Math.sin(t * 7.7 + s.seed) * .04 * gust;
     s.m.position.set(s.x, TREE_Y + .05, s.z); s.m.rotation.z = s.rot + flut + k * .03;
     s.m.scale.set((.3 + .7 * g) * (1 - .35 * gust * Math.max(0, Math.sin(t * 2.3 + s.seed * 5)) ** 6), .3 + .7 * g, 1);
@@ -2262,7 +2266,7 @@ renderer.setAnimationLoop((ts) => {
         d.y -= 1.1 * dt;
         if (!d.dying) d.a = Math.min(1, d.a + dt * 2);
       } else {
-        // Lật trong không khí: nằm phẳng thì cản gió, rơi chậm và trượt ngang như con lắc; dựng nghiêng thì rơi nhanh.
+        // Flipping in the air: lying flat it catches wind, falls slowly and drifts sideways like a pendulum; tilted on edge it falls fast.
         d.phi += d.phiRate * dt;
         const c = Math.cos(d.phi), flat = Math.abs(c);
         d.vy = lerp(d.vy, -d.fallK * lerp(2.6, .7, flat), 1 - Math.exp(-dt * 3));
@@ -2274,7 +2278,7 @@ renderer.setAnimationLoop((ts) => {
         d.rot += d.spin * dt;
         d.m.rotation.z = d.rot;
         d.m.scale.set(Math.max(.14, flat), 1, 1);
-        mat.color.setScalar(c >= 0 ? 1 : .72);                       // mặt dưới tối hơn
+        mat.color.setScalar(c >= 0 ? 1 : .72);                       // underside darker
         if (d.sh) {
           d.sh.position.set(d.x + SUN_SH[0] * d.y, SHORE_Y + .12, d.z + SUN_SH[1] * d.y);
           d.sh.rotation.z = d.rot; d.sh.scale.copy(d.m.scale);
@@ -2287,12 +2291,12 @@ renderer.setAnimationLoop((ts) => {
         const [dx, dy] = w2d(d.x, d.z, FLOAT_Y);
         if (pondE(dx, dy) < .97) {
           const [u, v] = d2uv(dx, dy);
-          if (d.snow) { d.state = 'melt'; } else { d.state = 'float'; d.life = { petal: 14, bloom: 20, leaf: 24 }[d.kind] * Math.sqrt(d.size) * rnd(.75, 1.25); d.sinkable = true; splash(u, v, .006, d.kind === 'leaf' ? .2 : .12); }   // nổi lâu hay mau tuỳ to nhỏ, rồi ngấm nước và chìm
+          if (d.snow) { d.state = 'melt'; } else { d.state = 'float'; d.life = { petal: 14, bloom: 20, leaf: 24 }[d.kind] * Math.sqrt(d.size) * rnd(.75, 1.25); d.sinkable = true; splash(u, v, .006, d.kind === 'leaf' ? .2 : .12); }   // floats longer or shorter depending on size, then soaks and sinks
         } else { d.state = 'land'; d.life = d.snow ? rnd(3, 6) : rnd(8, 14); d.m.renderOrder = 22; }
         d.y = FLOAT_Y;
       }
     } else if (d.state === 'float') {
-      // gió đẩy trôi (vật nhỏ trôi nhanh hơn lá sen to), nước khuấy theo con trỏ cuốn vật trôi theo hướng rê chuột
+      // wind pushes drift (small objects drift faster than big lotus leaves), water stirred by the pointer carries floating objects in the drag direction
       const k = d.ice ? .08 : d.big ? .3 : .6;
       d.vx = lerp(d.vx, wx * gust * 1.6 * k * 4, dt * .5); d.vz = lerp(d.vz, wz * gust * 1.6 * k * 4, dt * .5);
       if (pointer) {
@@ -2300,14 +2304,14 @@ renderer.setAnimationLoop((ts) => {
         if (dd < R) {
           const fall = (1 - dd / R) ** 2, kf = (d.big ? 1.1 : 2.4) * fall * dt;
           d.vx += (pointer.vx || 0) * kf + ddx / dd * (4 - Math.min(dd, 4)) * dt * 2; d.vz += (pointer.vz || 0) * kf + ddz / dd * (4 - Math.min(dd, 4)) * dt * 2;
-          d.spin += ((pointer.vx || 0) * ddz - (pointer.vz || 0) * ddx) / (dd * dd + 4) * dt * (d.big ? .05 : .3);   // dòng xoáy làm vật xoay
+          d.spin += ((pointer.vx || 0) * ddz - (pointer.vz || 0) * ddx) / (dd * dd + 4) * dt * (d.big ? .05 : .3);   // swirl makes objects spin
         }
       }
       d.spin *= Math.exp(-dt * .4);
-      // lá/hoa sen có cuống neo dưới đáy: trôi dạt quanh chỗ mọc rồi bị kéo về
+      // lotus leaves/flowers have stems anchored to the bottom: drift around where they grow then get pulled back
       if (d.big && !d.ice && d.hx !== undefined) { d.vx += (d.hx - d.x) * dt * .18; d.vz += (d.hz - d.z) * dt * .18; }
       for (const f of fish) { if (f.y < -1.4) continue; const [hx, hz] = f.head(), ddx = d.x - hx, ddz = d.z - hz, dd = Math.hypot(ddx, ddz); if (dd < 2.5 && dd > 0) { d.vx += ddx / dd * dt * 4; d.vz += ddz / dd * dt * 4; } }
-      // lá/hoa sen va nhau thì bị đẩy tách ra, không chồng lên nhau
+      // lotus leaves/flowers that collide get pushed apart, no overlap
       if (d.big && !d.dying) for (const o of drifters) {
         if (o === d || !o.big || o.dying || o.state !== 'float') continue;
         const ddx = d.x - o.x, ddz = d.z - o.z, dd = Math.hypot(ddx, ddz) || 1e-3, min = d.rad + o.rad;
@@ -2320,16 +2324,16 @@ renderer.setAnimationLoop((ts) => {
       if (!d.dying) d.a = Math.min(1, d.a + dt);
       d.life -= dt;
       if (d.sinkable && !d.dying) {
-        if (d.life < 2) mat.color.setScalar(lerp(.82, 1, clamp(d.life / 2, 0, 1)));   // ngấm nước: sẫm dần trước khi chìm
+        if (d.life < 2) mat.color.setScalar(lerp(.82, 1, clamp(d.life / 2, 0, 1)));   // soaking: gradually darken before sinking
         if (d.life < 0) {
-          // chuyển xuống cảnh dưới nước: nhìn qua mặt nước (khúc xạ, gợn), bị thân cá phía trên che
+          // move to the underwater scene: seen through the surface (refraction, ripples), occluded by the fish body above
           overScene.remove(d.m); waterScene.add(d.m); mat.depthTest = true;
           d.state = 'sink'; d.vy = -{ petal: .22, bloom: .28, leaf: .32 }[d.kind] * rnd(.8, 1.2); d.phi = 0; d.y0 = d.y;
           const [u, v] = d2uv(...w2d(d.x, d.z, FLOAT_Y)); splash(u, v, .004, .05);
         }
       } else if (d.life < 0) d.dying = true;
     } else if (d.state === 'sink') {
-      // chìm chậm, đung đưa và lật nhẹ, sẫm và mờ dần theo độ sâu
+      // sink slowly, swaying and flipping gently, darkening and fading with depth
       const depth = d.y0 - d.y;
       d.phi += dt * .7; d.y += d.vy * dt;
       d.x += (Math.sin(t * 1.3 + d.dir * 5) * .25 + d.vx * .3) * dt; d.z += (Math.cos(t * 1.1 + d.dir * 3) * .25 + d.vz * .3) * dt;
@@ -2344,13 +2348,13 @@ renderer.setAnimationLoop((ts) => {
     d.m.position.set(d.x, d.y, d.z);
     if (d.dying && d.a <= 0) { if (d.sh) { overScene.remove(d.sh); d.sh.material.dispose(); } d.m.removeFromParent(); mat.dispose(); d.m.geometry.dispose(); drifters.splice(i, 1); }
   }
-  // côn trùng
+  // insects
   for (let i = insects.length - 1; i >= 0; i--) { const b = insects[i]; b.update(dt, t); if (b.dying && b.a <= 0) { b.dispose(); insects.splice(i, 1); } }
 
   for (const f of fish) f.update(dt, t, fish, pointer);
   updateFood(dt, t, wx, wz, gust);
 
-  // Mô phỏng mặt nước
+  // Water surface simulation
   if (pointer) { const k = Math.exp(-dt * 6); pointer.speed *= k; pointer.vx *= k; pointer.vz *= k; }
   const vel = hasPtr ? ptrUV.clone().sub(prevUV) : new THREE.Vector2();
   stir.u.uPrev.value = stirBuf.read.texture; stir.u.uPtr.value.copy(ptrUV); stir.u.uPtrVel.value.copy(vel); stir.u.uDt.value = dt;
@@ -2367,7 +2371,7 @@ renderer.setAnimationLoop((ts) => {
   }
   RIPPLE.length = 0; prevUV.copy(ptrUV);
 
-  // Dưới nước -> RT, qua shader mặt nước ra màn hình, rồi các lớp trên mặt nước
+  // Underwater -> RT, through the water surface shader to the screen, then the above-water layers
   renderer.setRenderTarget(sceneRT); renderer.setClearColor(new THREE.Color(S.paper), 1); renderer.clear(); renderer.render(waterScene, camera);
   comp.u.uScene.value = sceneRT.texture; comp.u.uStir.value = stirBuf.read.texture; comp.u.uWave.value = waveBuf.read.texture;
   comp.u.uTime.value = t; comp.u.uGust.value = gust; comp.u.uWind.value.set(wx, -wz);
