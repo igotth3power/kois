@@ -10,7 +10,7 @@ A top-down koi pond painted in the style of Japanese ink-wash (sumi-e), built wi
 - 3D koi animated in a vertex shader: the body follows its swimming path, single-beat turns and C-start escapes based on koi kinematics research, fanning pectoral and pelvic fins, and patterns picked at random by the rarity of 13 varieties.
 - Click to drop food: the koi rise to the surface to eat.
 
-Keys: `1`–`4` season · `N` day/night · `A` auto · `M` mute · `I` info.
+The ink-brush button in the bottom-right corner opens the controls: music on/off, a season (春夏秋冬) and day/night (昼夜). A picked option is pinned (red seal); pick it again to let it cycle — unpinned, each season gets one day and one night before the next. Keys: `1`–`4` season · `N` day/night · `M` music · `I` info.
 
 ## Run
 

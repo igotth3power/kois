@@ -8,52 +8,147 @@
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Yuji+Syuku&family=Noto+Serif+JP:wght@500;700&display=swap" />
     <style>
-      :root { --paper: #ece4cf; --ink: #1d1d1d; }
+      :root { --paper: #ece4cf; --ink: #1d1d1d; --seal: #b3281e; --petal: #e9a3b6; --sun: #c8321f; }
       * { box-sizing: border-box; }
       html, body { margin: 0; height: 100%; overflow: hidden; background: var(--paper); color: var(--ink); font-family: system-ui, sans-serif; }
       /* the painting covers the whole screen at 960:560 (crops the overflow instead of letterboxing) */
       #scene { position: fixed; left: 50%; top: 50%; transform: translate(-50%, -50%); width: max(100vw, calc(100vh * 960 / 560)); aspect-ratio: 960 / 560; height: auto; display: block; cursor: crosshair; background: var(--paper); }
-      /* toolbar hidden: use keyboard shortcuts; buttons stay in the DOM for the script */
-      .toolbar { display: none; }
-      /* attribution (required by CC BY): tucked behind a small corner button */
-      #infoBtn { position: fixed; right: 12px; bottom: 12px; width: 26px; height: 26px; border-radius: 50%; border: 1px solid rgba(0, 0, 0, .25); background: rgba(255, 255, 255, .45); color: #333; font: 600 13px/24px Georgia, serif; text-align: center; padding: 0; cursor: pointer; opacity: .45; transition: opacity .2s; z-index: 2; }
-      #infoBtn:hover, #infoBtn.on { opacity: 1; }
-      #info { position: fixed; right: 12px; bottom: 46px; max-width: min(520px, calc(100vw - 24px)); padding: 10px 14px; border-radius: 8px; background: rgba(250, 246, 236, .94); box-shadow: 0 4px 18px rgba(0, 0, 0, .15); font-size: 12px; line-height: 1.6; display: none; z-index: 2; }
+
+      /* ---- corner control in ink-brush style ---- */
+      #ctrl { position: fixed; right: 14px; bottom: 14px; display: flex; flex-direction: column-reverse; align-items: center; gap: 6px; z-index: 3; }
+      .ink { --c: var(--ink); width: 44px; height: 44px; padding: 0; border: 0; background: none; color: var(--c); cursor: pointer; opacity: .55; position: relative; transition: opacity .25s, transform .25s; }
+      .ink svg { width: 100%; height: 100%; overflow: visible; display: block; }
+      .ink:hover, .ink.cur { opacity: .95; }
+      .ink:hover { transform: scale(1.08) rotate(-3deg); }
+      .ink .ring { fill: none; stroke: var(--c); stroke-linecap: round; }
+      /* pinned choice = red seal (hanko): red square, icon in paper colour */
+      .ink.pin { --c: #f6eedd; --petal: #f6d9e0; --sun: #f6eedd; opacity: .95; }
+      .ink.pin::before { content: ''; position: absolute; inset: 5px; background: var(--seal); border-radius: 4px; transform: rotate(-4deg); box-shadow: inset 0 0 0 2px rgba(246, 238, 221, .3); }
+      .ink.pin .ring { opacity: 0; }
+      .ink.pin svg { position: relative; }
+      body.intro #ctrl { display: none; }   /* hidden during the intro */
+      #main { width: 56px; height: 56px; opacity: .85; }
+      #main .ring { transition: transform .6s cubic-bezier(.3, 1.4, .5, 1); transform-origin: 20px 20px; }
+      #main.open .ring { transform: rotate(-200deg); }
+      #main.open { transform: rotate(-8deg); }
+
+      /* the buttons unroll upward (like opening a hanging scroll), no backdrop */
+      #strip { display: flex; flex-direction: column; align-items: center; gap: 0; padding: 4px 0;
+        clip-path: inset(100% -20px 0 -20px); visibility: hidden;
+        transition: clip-path .7s cubic-bezier(.65, 0, .35, 1), visibility 0s .7s; }
+      #strip.open { clip-path: inset(-20px -20px 0 -20px); visibility: visible; transition: clip-path .7s cubic-bezier(.65, 0, .35, 1), visibility 0s; }
+      #strip .dot { width: 4px; height: 4px; border-radius: 50%; background: var(--ink); opacity: .3; margin: 5px 0; }
+      /* icons seep in like ink on wet paper (blur -> sharp), one after another from the bottom; rings are brushed in */
+      #strip .ink { opacity: 0; filter: blur(6px); transform: scale(.7); transition: opacity .45s, filter .6s, transform .5s; }
+      #strip.open .ink { opacity: .55; filter: blur(0); transform: none; transition-delay: calc(.25s + var(--i) * 55ms); }
+      #strip.open .ink.cur, #strip.open .ink:hover { opacity: .95; }
+      #strip.open .ink.pin { opacity: .95; }
+      #strip .ring { stroke-dasharray: 120; stroke-dashoffset: 120; transition: stroke-dashoffset .8s ease-out; }
+      #strip.open .ring { stroke-dashoffset: 0; transition-delay: calc(.3s + var(--i) * 55ms); }
+      /* muted: a brush slash */
+      #music.off { opacity: .35 !important; }
+      #music.off::after { content: ''; position: absolute; left: 10px; right: 10px; top: 50%; height: 2.5px; background: var(--ink); border-radius: 2px; transform: rotate(-38deg); opacity: .8; }
+
+      /* attribution (required by CC BY) + koi list, opened from the strip */
+      #info { position: fixed; right: 80px; bottom: 14px; max-width: min(520px, calc(100vw - 100px)); padding: 10px 14px; border-radius: 8px; background: rgba(250, 246, 236, .94); box-shadow: 0 4px 18px rgba(0, 0, 0, .15); font-size: 12px; line-height: 1.6; display: none; z-index: 2; }
       #info.on { display: block; }
       #info p { margin: 0 0 4px; }
       #info .keys { opacity: .7; }
     </style>
   </head>
   <body>
-    <div class="toolbar">
-      <button data-season="spring" class="on">春 Spring</button>
-      <button data-season="summer">夏 Summer</button>
-      <button data-season="autumn">秋 Autumn</button>
-      <button data-season="winter">冬 Winter</button>
-      <button id="auto" class="on">Auto seasons</button>
-      <button id="night">☾ Night</button>
-    </div>
     <canvas id="scene"></canvas>
-    <button id="infoBtn" title="Info (I)">i</button>
+    <div id="ctrl">
+      <button class="ink" id="main" title="Scene"></button>
+      <div id="strip">
+        <button class="ink" id="music" title="Music (M)" data-icon="music"></button>
+        <span class="dot"></span>
+        <button class="ink" data-season="spring" title="Spring · bud (1)" data-icon="spring"></button>
+        <button class="ink" data-season="summer" title="Summer · full bloom (2)" data-icon="summer"></button>
+        <button class="ink" data-season="autumn" title="Autumn · wilting (3)" data-icon="autumn"></button>
+        <button class="ink" data-season="winter" title="Winter · fallen petals (4)" data-icon="winter"></button>
+        <span class="dot"></span>
+        <button class="ink" data-time="day" title="Day (N)" data-icon="day"></button>
+        <button class="ink" data-time="night" title="Night (N)" data-icon="night"></button>
+        <span class="dot"></span>
+        <button class="ink" id="infoBtn" title="Info (I)" data-icon="info"></button>
+      </div>
+    </div>
     <div id="info">
       <p id="koiList"></p>
       <p>Koi: "Koi Fish" by 7PLUS · <a href="https://sketchfab.com/3d-models/koi-fish-236859b809984f52b70c94fd040b9c59">Sketchfab</a> · CC BY 4.0</p>
       <p>Frog: "Frog" by Thunk3D scanner (Diana123456) · <a href="https://sketchfab.com/3d-models/frog-436deb1555fa42b9bc146e1b6b0d1ebc">Sketchfab</a> · CC BY 4.0 · decimated and repainted</p>
-      <p class="keys">Move the mouse over the water to stir it · Click to drop food · Keys 1–4: season · N: day/night · A: auto · M: mute</p>
+      <p>Music: koto tracks from Pixabay</p>
+      <p class="keys">Move the mouse over the water to stir it · Click to drop food · Pick a season or day/night to pin it (pick again to let it cycle) · Keys 1–4 season · N day/night · M music · I info</p>
     </div>
     <script>
-      // keyboard shortcuts in place of the hidden toolbar
-      const click = sel => document.querySelector(sel)?.click();
+      // ---- ink icons (viewBox 40x40): the life of a blossom for the seasons, sun and moon for day and night ----
+      // every icon sits inside a brushed ensō ring; ink parts use currentColor so a pinned (red seal) icon turns paper-white
+      const RING = '<path class="ring" stroke-width="2.4" opacity=".75" d="M27 7.5C21 4.5 11 6 7.5 13.5S8 31 16 33.5 31 32 33 24 30.5 10 25 8"/>';
+      const petal = (a, r = 6, w = 3.4, cx = 20, cy = 19) => `<ellipse cx="${cx}" cy="${cy - r}" rx="${w}" ry="${r * .62}" transform="rotate(${a} ${cx} ${cy})" fill="var(--petal)" stroke="currentColor" stroke-width=".7"/>`;
+      const ICON = {
+        // 春 bud: a closed teardrop bud with sepals on a curved twig
+        spring: `<path d="M20 33 C19 28 21 25 20 21" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/>
+          <path d="M20 21 C15 20 15.5 13 20 10 C24.5 13 25 20 20 21Z" fill="var(--petal)" stroke="currentColor" stroke-width=".9"/>
+          <path d="M20 21 C17 19.5 16.5 17 17.5 15.5 M20 21 C23 19.5 23.5 17 22.5 15.5" fill="none" stroke="currentColor" stroke-width="1.2" stroke-linecap="round"/>
+          <path d="M20 27 C23 26 25 24.5 25.5 22.5" fill="none" stroke="currentColor" stroke-width="1.1" stroke-linecap="round"/>`,
+        // 夏 full bloom: five open petals with notched tips, stamens radiating
+        summer: [0, 72, 144, 216, 288].map(a => petal(a, 7, 3.8, 20, 20)).join('') +
+          [0, 40, 80, 120, 160, 200, 240, 280, 320].map(a => `<path d="M20 20 L${20 + Math.cos(a * Math.PI / 180) * 4.6} ${20 + Math.sin(a * Math.PI / 180) * 4.6}" stroke="currentColor" stroke-width=".6"/><circle cx="${20 + Math.cos(a * Math.PI / 180) * 4.9}" cy="${20 + Math.sin(a * Math.PI / 180) * 4.9}" r=".7" fill="currentColor"/>`).join('') +
+          '<circle cx="20" cy="20" r="1.6" fill="currentColor"/>',
+        // 秋 wilting: the stem bows, the head hangs, petals curl down and one is falling
+        autumn: `<path d="M17 33 C17 26 19 19 25 15 C28 13 29.5 15 28.5 18" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
+          <path d="M28.5 18 C25 19 23.5 23 25 26 C27 24 28 22 28.5 18Z" fill="var(--petal)" stroke="currentColor" stroke-width=".7" opacity=".9"/>
+          <path d="M28.5 18 C31.5 20 32 24 30 27 C29 24 28.6 21 28.5 18Z" fill="var(--petal)" stroke="currentColor" stroke-width=".7" opacity=".9"/>
+          <path d="M14 23 C13 25 14.5 27 16 26.5 C16.5 25 15.5 23 14 23Z" fill="var(--petal)" stroke="currentColor" stroke-width=".6" transform="rotate(-25 15 25)"/>
+          <path d="M17 26 C15 25 13 25.5 12 27" fill="none" stroke="currentColor" stroke-width="1" stroke-linecap="round"/>`,
+        // 冬 fallen to pieces: a bare twig with a cap of snow, scattered petals on the ground line
+        winter: `<path d="M21 27 C20.5 21 22 16 26 11 M22.5 18 C20 16.5 17.5 14 16.5 11.5" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
+          <path d="M23.8 14.2 C25 12.4 27 11 28.3 11.3" fill="none" stroke="#fff" stroke-width="1.6" stroke-linecap="round" opacity=".9"/>
+          <path d="M10 29.5 C15 28.5 25 28.5 30 29.5" fill="none" stroke="currentColor" stroke-width="1" stroke-linecap="round" opacity=".6"/>
+          ${[[13, 28, 20], [17.5, 29.4, -40], [24, 28.6, 70], [28, 29.6, -10], [15.5, 24, 110]].map(([x, y, a]) => `<ellipse cx="${x}" cy="${y}" rx="1.9" ry="1.1" transform="rotate(${a} ${x} ${y})" fill="var(--petal)" stroke="currentColor" stroke-width=".5"/>`).join('')}`,
+        // 昼 sun: a red disc (hinomaru) with brushed rays
+        day: '<circle cx="20" cy="20" r="6.5" fill="var(--sun)"/>' + [0, 45, 90, 135, 180, 225, 270, 315].map(a => { const c = Math.cos(a * Math.PI / 180), s = Math.sin(a * Math.PI / 180); return `<path d="M${20 + c * 9} ${20 + s * 9} L${20 + c * 11.5} ${20 + s * 11.5}" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" opacity=".8"/>`; }).join(''),
+        // 夜 moon: an ink crescent with a faint star
+        night: '<path d="M23 10.5 A9.5 9.5 0 1 0 29.5 25 A7.5 7.5 0 1 1 23 10.5Z" fill="currentColor" opacity=".9"/><circle cx="28" cy="13" r=".9" fill="currentColor" opacity=".7"/>',
+        // 音 music: a koto bridge (ji) with three strings
+        music: '<path d="M8 14 L32 14 M8 20 L32 20 M8 26 L32 26" stroke="currentColor" stroke-width=".9" opacity=".7"/><path d="M15 29 L19 11 L23 29" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"/><path d="M14 29 L24 29" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/>',
+        info: '<text x="20" y="27" text-anchor="middle" font-family="Georgia, serif" font-style="italic" font-size="17" fill="currentColor">i</text>',
+      };
+      const svg = name => `<svg viewBox="0 0 40 40">${RING}${ICON[name]}</svg>`;
+      const $ = s => document.querySelector(s), $$ = s => document.querySelectorAll(s);
+      $$('#strip .ink').forEach((b, i, all) => { b.innerHTML = svg(b.dataset.icon); b.style.setProperty('--i', all.length - 1 - i); });
+      $('#main').innerHTML = svg('spring');
+
+      // Corner control. Seasons and day/night each cycle on their own until one is picked (red seal);
+      // picking it again un-pins it. The current, unpinned state is drawn in darker ink.
+      const ctrl = () => window.KOI_CTRL;
+      function paint(st) {
+        if (!st) return;
+        $('#main').innerHTML = svg(st.season || 'spring');
+        $$('[data-season]').forEach(b => { b.classList.toggle('pin', st.pinSeason === b.dataset.season); b.classList.toggle('cur', !st.pinSeason && st.season === b.dataset.season); });
+        $$('[data-time]').forEach(b => { const t = b.dataset.time; b.classList.toggle('pin', st.pinTime === t); b.classList.toggle('cur', !st.pinTime && (t === 'night') === st.night); });
+      }
+      document.addEventListener('koi:state', e => paint(e.detail));
+      document.addEventListener('koi:music', e => $('#music').classList.toggle('off', e.detail.muted));
+      const openStrip = o => { $('#strip').classList.toggle('open', o); $('#main').classList.toggle('open', o); if (!o) $('#info').classList.remove('on'); };
+      $('#main').onclick = () => openStrip(!$('#strip').classList.contains('open'));
+      $$('[data-season]').forEach(b => b.onclick = () => { const st = ctrl()?.state; if (st) ctrl().pinSeason(st.pinSeason === b.dataset.season ? null : b.dataset.season); });
+      $$('[data-time]').forEach(b => b.onclick = () => { const st = ctrl()?.state; if (st) ctrl().pinTime(st.pinTime === b.dataset.time ? null : b.dataset.time); });
+      $('#music').onclick = () => window.KOI_MUSIC?.toggle();
+      $('#infoBtn').onclick = () => $('#info').classList.toggle('on');
+      addEventListener('load', () => { $('#music').classList.toggle('off', !!window.KOI_MUSIC?.muted); paint(ctrl()?.state); });
+      // keyboard: 1-4 pin/unpin a season, N cycles the day/night pin (none -> day -> night -> none), M music, I info
       addEventListener('keydown', e => {
         if (e.ctrlKey || e.metaKey || e.altKey) return;
         const k = e.key.toLowerCase(), seasons = { 1: 'spring', 2: 'summer', 3: 'autumn', 4: 'winter' };
-        if (seasons[k]) click(`[data-season="${seasons[k]}"]`);
-        else if (k === 'n') click('#night');
-        else if (k === 'a') click('#auto');
-        else if (k === 'i') click('#infoBtn');
+        if (seasons[k]) $(`[data-season="${seasons[k]}"]`).click();
+        else if (k === 'n') { const st = ctrl()?.state; if (st) ctrl().pinTime(st.pinTime === null ? 'day' : st.pinTime === 'day' ? 'night' : null); }
+        else if (k === 'm') $('#music').click();
+        else if (k === 'i') { openStrip(true); $('#info').classList.toggle('on'); }
       });
-      document.getElementById('infoBtn').onclick = e => { const on = document.getElementById('info').classList.toggle('on'); e.currentTarget.classList.toggle('on', on); };
     </script>
+    <script type="module" src="/src/intro.js"></script>
     <script type="module" src="/src/music.js"></script>
     <script type="module" src="/src/pond.js"></script>
   </body>

@@ -647,15 +647,16 @@ function mapleArt(s, x, y, r, col, seed) {
   const mix = (a, b, t) => { const pa = [1, 3, 5].map(i => parseInt(a.substr(i, 2), 16)), pb = [1, 3, 5].map(i => parseInt(b.substr(i, 2), 16)); return '#' + pa.map((v, i) => Math.round(v + (pb[i] - v) * t).toString(16).padStart(2, '0')).join(''); };
   const light = mix(col, '#f0c050', .55), dark = mix(col, '#3a0e08', .45), ink = mix(col, '#1a0804', .75);
   // [angle offset from the up axis (deg), relative length, relative width]
-  const lobes = [[0, 1, .19], [-42, .95, .185], [42, .95, .185], [-84, .78, .17], [84, .78, .17], [-124, .46, .14], [124, .46, .14]]
+  // Japanese maple (irohamomiji): slender finger-like lobes cut almost to the petiole, long tapering tips, fine teeth
+  const lobes = [[0, 1, .135], [-38, .96, .13], [38, .96, .13], [-76, .8, .118], [76, .8, .118], [-114, .5, .09], [114, .5, .09]]
     .map(([a, l, w]) => [a + (rr() - .5) * 8, l * (.92 + rr() * .14), w * (.9 + rr() * .2)]).sort((p, q) => p[0] - q[0]);
-  const rs = r * .16, pts = [], tips = [], gapT = Math.tan(19 * Math.PI / 180);   // adjacent lobes ~40° apart: width near the base never exceeds half the gap -> no overlap
+  const rs = r * .09, pts = [], tips = [], gapT = Math.tan(17 * Math.PI / 180);   // adjacent lobes ~40° apart: width near the base never exceeds half the gap -> no overlap
   const P = (ang, along, side) => { const u = (ang - 90) * Math.PI / 180; return [x + Math.cos(u) * along - Math.sin(u) * side, y + Math.sin(u) * along + Math.cos(u) * side]; };
   for (const [ang, l, w] of lobes) {
-    const L = r * l, W = r * w, n = 16, edge = [];
-    const width = t => Math.min(W * Math.pow(Math.sin(Math.PI * Math.min(1, Math.pow(t, .75))), 1.1) * (1 - .2 * t), (rs + t * (L - rs)) * gapT);
+    const L = r * l, W = r * w, n = 28, edge = [];
+    const width = t => Math.min(W * Math.pow(Math.sin(Math.PI * Math.min(1, Math.pow(t, .7))), 1.15) * (1 - .35 * t), (rs + t * (L - rs)) * gapT);
     for (let i = 0; i <= n; i++) {
-      const t = i / n, tooth = t > .3 && t < .96 ? (i % 2 ? .13 : -.05) * W * (1 - t * .4) : 0;
+      const t = i / n, tooth = t > .22 && t < .95 ? (i % 2 ? .1 : -.04) * W * (1 - t * .45) : 0;
       edge.push([t, width(t) + tooth]);
     }
     // left edge from base up to tip, then right edge from tip down to base
@@ -761,7 +762,8 @@ async function spriteSet(key) {
     sakuraArt(s, 15, 14, 10, 40 + i, c, i * 23);
   }, 4))));
   if (key === 'autumn') {
-    const cols = ['#a8321e', '#c4512b', '#d9823a', '#8c2a1a', '#b8402a', '#e09a40'];
+    // a momiji tree turns unevenly: crimson, red, orange, amber, yellow and some still green leaves on one tree
+    const cols = ['#b8321e', '#d24a26', '#e0742c', '#e8a23a', '#c9b23e', '#8fa83e', '#9a2418', '#d65c2a'];
     out.leaf = await Promise.all(cols.map((c, i) => raster(spriteSVG(40, 40, s => mapleArt(s, 20, 20, 15, c, 700 + i), 4))));
     out.fall = out.leaf;
   }
@@ -969,6 +971,10 @@ const PATTERN_GLSL = /* glsl */ `
       c = mix(W, BLK, patchN(q, 1.5, .5));
     #elif KOI_VARIANT == 11   // Hi Utsuri: ink base, large red
       c = mix(BLK, VER, smoothstep(.3, .5, redT + (fbm(q) - .5) + .1));
+    #elif KOI_VARIANT == 13   // Shiro Bekko: paper-white with ink patches on the back (intro)
+      c = mix(W * 1.08, BLK, patchN(q + 4.0, 1.9, .6) * top * step(.1, s) * (1.0 - fin));
+    #elif KOI_VARIANT == 14   // ink-black with paper-white clouds (intro)
+      c = mix(BLK, W * 1.05, patchN(q + 2.0, 1.4, .6) * (1.0 - fin * .6));
     #else                     // Ochiba: blue-grey + brown patches
       c = mix(vec3(.32, .35, .38) * shade, vec3(.5, .3, .14) * shade, red);
     #endif
@@ -1127,106 +1133,110 @@ class Koi {
   startTurn(D, fast = false) { this.ev = { D, t: 0, prev: 0, fast, t1: fast ? .11 : TUNE.t1 * rnd(.85, 1.15), t2: fast ? .17 : TUNE.t2 }; }
   update(dt, t, others, pointer) {
     this.t = t;
-    // Turning per koi research (Wu, Yang & Zeng 2007, J Exp Biol 210:4379): fish mostly turn in "a single beat":
-    //  stage 1: body bends into a C toward the turn, most of the turn angle happens here, near-fixed duration;
-    //  stage 2: body + tail flip back to the other side (the push), then swim straight/glide. Between turns fish go nearly straight.
-    // Startle = C-start (Eaton 1988, goldfish): stage 1 rotates the body 30-100° very fast, stage 2 darts straight; trajectory straight afterwards.
-    let want = this.cruise, desired, urg = 0;
-    // Food: reaction delay, swim over, slow down, rise right under the pellet, lift the head and gulp.
-    this.gulpCD = (this.gulpCD || 0) - dt; this.react = (this.react ?? rnd(.2, 1.2)) - dt;
-    if (this.food && (this.food.state === 'gone' || this.food.state === 'suck')) this.food = null;
-    if (!this.food && this.react <= 0) {
-      let fd = 26; for (const f of foods) { if (f.state !== 'float' && f.state !== 'sink') continue; const d = Math.hypot(f.x - this.x, f.z - this.z); if (d < fd) { fd = d; this.food = f; } }
-      this.react = this.food ? 0 : rnd(.3, 1);
-    }
-    const food = this.food;
-    this.pitchT = 0;
-    const [dx, dy] = w2d(this.x, this.z, this.y), e = pondE(dx, dy);
-    if (food) {
-      const [hx, hz] = this.head(), dh = Math.hypot(food.x - hx, food.z - hz);
-      desired = Math.atan2(food.z - this.z, food.x - this.x);
-      want = dh > 5 ? this.cruise * 1.8 : this.cruise * (.35 + dh / 7);
-      this.ty = Math.min(-.45, food.y - .45);
-      if (dh < 5) this.pitchT = food.state === 'float' ? .38 : .15;
-      if (dh < 1.15 && Math.abs(this.y - food.y) < 1.3 && this.gulpCD <= 0) gulp(this);
-    } else {
-      // random swim goal in the pond (changes periodically) + avoid other fish: sum vectors then take the heading
-      this.goalT = (this.goalT ?? 0) - dt;
-      const gBack = this.goal && Math.abs(angDiff(Math.atan2(this.goal[1] - dy, this.goal[0] - dx), this.heading)) > 1.9;
-      // near the goal, or the goal has slipped behind (passed by) -> pick a new goal, don't circle back around the old one
-      if (!this.goal || this.goalT < 0 || Math.hypot(this.goal[0] - dx, this.goal[1] - dy) < 90 || (gBack && e < .55)) {   // no goal yet (first frame dt = 0) also picks immediately
-        let best = null, bs = -1e9;
-        // score goals: little turning, far away (cross the pond instead of hugging the shore), and turning OPPOSITE to the recent dominant turn direction
-        // -> don't get caught in a one-way loop along the shore
-        for (let i = 0; i < 8; i++) {
-          const g = pondPt(rnd(0, TAU), rnd(.05, .65)), a = angDiff(Math.atan2(g[1] - dy, g[0] - dx), this.heading);
-          const sc = -.5 * Math.abs(a) + .004 * Math.hypot(g[0] - dx, g[1] - dy) - (Math.sign(a) === Math.sign(this.net || 0) ? Math.min(1.2, Math.abs(this.net || 0) / 2.5) : 0) + rnd(0, .8);
-          if (sc > bs) { bs = sc; best = g; }
+    // scripted koi (the intro): position, heading and speed come from the script; only the swimming animation below runs
+    if (this.script) this.script(this, dt);
+    else {
+      // Turning per koi research (Wu, Yang & Zeng 2007, J Exp Biol 210:4379): fish mostly turn in "a single beat":
+      //  stage 1: body bends into a C toward the turn, most of the turn angle happens here, near-fixed duration;
+      //  stage 2: body + tail flip back to the other side (the push), then swim straight/glide. Between turns fish go nearly straight.
+      // Startle = C-start (Eaton 1988, goldfish): stage 1 rotates the body 30-100° very fast, stage 2 darts straight; trajectory straight afterwards.
+      let want = this.cruise, desired, urg = 0;
+      // Food: reaction delay, swim over, slow down, rise right under the pellet, lift the head and gulp.
+      this.gulpCD = (this.gulpCD || 0) - dt; this.react = (this.react ?? rnd(.2, 1.2)) - dt;
+      if (this.food && (this.food.state === 'gone' || this.food.state === 'suck')) this.food = null;
+      if (!this.food && this.react <= 0) {
+        let fd = 26; for (const f of foods) { if (f.state !== 'float' && f.state !== 'sink') continue; const d = Math.hypot(f.x - this.x, f.z - this.z); if (d < fd) { fd = d; this.food = f; } }
+        this.react = this.food ? 0 : rnd(.3, 1);
+      }
+      const food = this.food;
+      this.pitchT = 0;
+      const [dx, dy] = w2d(this.x, this.z, this.y), e = pondE(dx, dy);
+      if (food) {
+        const [hx, hz] = this.head(), dh = Math.hypot(food.x - hx, food.z - hz);
+        desired = Math.atan2(food.z - this.z, food.x - this.x);
+        want = dh > 5 ? this.cruise * 1.8 : this.cruise * (.35 + dh / 7);
+        this.ty = Math.min(-.45, food.y - .45);
+        if (dh < 5) this.pitchT = food.state === 'float' ? .38 : .15;
+        if (dh < 1.15 && Math.abs(this.y - food.y) < 1.3 && this.gulpCD <= 0) gulp(this);
+      } else {
+        // random swim goal in the pond (changes periodically) + avoid other fish: sum vectors then take the heading
+        this.goalT = (this.goalT ?? 0) - dt;
+        const gBack = this.goal && Math.abs(angDiff(Math.atan2(this.goal[1] - dy, this.goal[0] - dx), this.heading)) > 1.9;
+        // near the goal, or the goal has slipped behind (passed by) -> pick a new goal, don't circle back around the old one
+        if (!this.goal || this.goalT < 0 || Math.hypot(this.goal[0] - dx, this.goal[1] - dy) < 90 || (gBack && e < .55)) {   // no goal yet (first frame dt = 0) also picks immediately
+          let best = null, bs = -1e9;
+          // score goals: little turning, far away (cross the pond instead of hugging the shore), and turning OPPOSITE to the recent dominant turn direction
+          // -> don't get caught in a one-way loop along the shore
+          for (let i = 0; i < 8; i++) {
+            const g = pondPt(rnd(0, TAU), rnd(.05, .65)), a = angDiff(Math.atan2(g[1] - dy, g[0] - dx), this.heading);
+            const sc = -.5 * Math.abs(a) + .004 * Math.hypot(g[0] - dx, g[1] - dy) - (Math.sign(a) === Math.sign(this.net || 0) ? Math.min(1.2, Math.abs(this.net || 0) / 2.5) : 0) + rnd(0, .8);
+            if (sc > bs) { bs = sc; best = g; }
+          }
+          this.goal = best; this.goalT = rnd(8, 16);
         }
-        this.goal = best; this.goalT = rnd(8, 16);
+        const toGoal = Math.atan2(this.goal[1] - dy, this.goal[0] - dx);
+        let vx = Math.cos(toGoal), vz = Math.sin(toGoal);
+        for (const o of others) { if (o === this) continue; const ddx = this.x - o.x, ddz = this.z - o.z, d = Math.hypot(ddx, ddz), R = 7 * this.size; if (d < R && d > 0 && Math.abs(o.y - this.y) < 1.6) { vx += ddx / d * 1.3 * (1 - d / R); vz += ddz / d * 1.3 * (1 - d / R); } }
+        desired = Math.atan2(vz, vx);
+        urg = clamp((e - .55) / .35, 0, 1);   // near the shore: turn earlier, more decisively
       }
-      const toGoal = Math.atan2(this.goal[1] - dy, this.goal[0] - dx);
-      let vx = Math.cos(toGoal), vz = Math.sin(toGoal);
-      for (const o of others) { if (o === this) continue; const ddx = this.x - o.x, ddz = this.z - o.z, d = Math.hypot(ddx, ddz), R = 7 * this.size; if (d < R && d > 0 && Math.abs(o.y - this.y) < 1.6) { vx += ddx / d * 1.3 * (1 - d / R); vz += ddz / d * 1.3 * (1 - d / R); } }
-      desired = Math.atan2(vz, vx);
-      urg = clamp((e - .55) / .35, 0, 1);   // near the shore: turn earlier, more decisively
-    }
-    const err = angDiff(desired, this.heading);
-    this.gapT = (this.gapT ?? rnd(.5, 2)) - dt; this.lockT = (this.lockT || 0) - dt;
-    // Startle: lock ONE escape heading when the water surface is touched (away from the pointer), C-start then dart straight.
-    this.startleCD = (this.startleCD || 0) - dt;
-    if (pointer && this.startle <= 0 && this.startleCD <= 0 && pointer.speed > 18) {
-      const ddx = this.x - pointer.x, ddz = this.z - pointer.z, d = Math.hypot(ddx, ddz);
-      if (d < 11) {
-        let D = angDiff(Math.atan2(ddz, ddx) + rnd(-.3, .3), this.heading);
-        if (Math.abs(D) < .4) D = Math.sign(D || 1) * .4;
-        this.startTurn(clamp(D, -2.4, 2.4), true);
-        this.startle = rnd(1, 1.4); this.burstT = 0; this.startleCD = this.startle + rnd(1.8, 3); this.food = null;
-        // new goal lies ahead along the escape heading -> no looping back after the dart
-        const h = this.heading + D, [ax, ay] = w2d(this.x + Math.cos(h) * 14, this.z + Math.sin(h) * 14, this.y);
-        this.goal = [lerp(ax, POND.cx, .3), lerp(ay, POND.cy, .3)]; this.goalT = rnd(4, 7);
+      const err = angDiff(desired, this.heading);
+      this.gapT = (this.gapT ?? rnd(.5, 2)) - dt; this.lockT = (this.lockT || 0) - dt;
+      // Startle: lock ONE escape heading when the water surface is touched (away from the pointer), C-start then dart straight.
+      this.startleCD = (this.startleCD || 0) - dt;
+      if (pointer && this.startle <= 0 && this.startleCD <= 0 && pointer.speed > 18) {
+        const ddx = this.x - pointer.x, ddz = this.z - pointer.z, d = Math.hypot(ddx, ddz);
+        if (d < 11) {
+          let D = angDiff(Math.atan2(ddz, ddx) + rnd(-.3, .3), this.heading);
+          if (Math.abs(D) < .4) D = Math.sign(D || 1) * .4;
+          this.startTurn(clamp(D, -2.4, 2.4), true);
+          this.startle = rnd(1, 1.4); this.burstT = 0; this.startleCD = this.startle + rnd(1.8, 3); this.food = null;
+          // new goal lies ahead along the escape heading -> no looping back after the dart
+          const h = this.heading + D, [ax, ay] = w2d(this.x + Math.cos(h) * 14, this.z + Math.sin(h) * 14, this.y);
+          this.goal = [lerp(ax, POND.cx, .3), lerp(ay, POND.cy, .3)]; this.goalT = rnd(4, 7);
+        }
       }
-    }
-    if (this.startle > 0) { this.startle -= dt; want = this.cruise * 4; }
-    // single-beat turn when the heading error is large enough; a rest interval between turns (straight swim/glide)
-    if (!this.ev && this.lockT <= 0 && this.gapT <= 0) {
-      const thr = food ? .22 : lerp(.6, .18, urg);
-      if (Math.abs(err) > thr) this.startTurn(clamp(err * rnd(.9, 1.05), -1.7, 1.7));   // turn nearly the full heading error: consistent under-turning becomes circling around the goal
-      else {
-        // occasionally turn freely, favoring the opposite of the recent dominant direction -> path meanders both ways
-        this.turnT = (this.turnT ?? rnd(1, 6)) - dt;
-        if (this.turnT < 0 && !food && urg < .3) { this.turnT = rnd(5, 12); this.startTurn((Math.abs(this.net || 0) > .8 && Math.random() < .75 ? -Math.sign(this.net) : (Math.random() < .5 ? -1 : 1)) * rnd(.35, .9)); }
+      if (this.startle > 0) { this.startle -= dt; want = this.cruise * 4; }
+      // single-beat turn when the heading error is large enough; a rest interval between turns (straight swim/glide)
+      if (!this.ev && this.lockT <= 0 && this.gapT <= 0) {
+        const thr = food ? .22 : lerp(.6, .18, urg);
+        if (Math.abs(err) > thr) this.startTurn(clamp(err * rnd(.9, 1.05), -1.7, 1.7));   // turn nearly the full heading error: consistent under-turning becomes circling around the goal
+        else {
+          // occasionally turn freely, favoring the opposite of the recent dominant direction -> path meanders both ways
+          this.turnT = (this.turnT ?? rnd(1, 6)) - dt;
+          if (this.turnT < 0 && !food && urg < .3) { this.turnT = rnd(5, 12); this.startTurn((Math.abs(this.net || 0) > .8 && Math.random() < .75 ? -Math.sign(this.net) : (Math.random() < .5 ? -1 : 1)) * rnd(.35, .9)); }
+        }
       }
+      // small error: continuous, very gentle heading correction (multi-beat turn), body barely bends
+      const contT = clamp(err * (food ? .6 : .12 + urg * .9), -(food ? .5 : .07 + urg * .8), food ? .5 : .07 + urg * .8);
+      this.contW = lerp(this.contW || 0, contT, 1 - Math.exp(-dt * 2));
+      let evRot = 0; this.cBend = 0;
+      if (this.ev) {
+        const ev = this.ev; ev.t += dt;
+        // ~80% of the turn angle in stage 1 (C), the rest in stage 2 (counter-bend)
+        const prog = ev.t < ev.t1 ? .8 * smooth01(ev.t / ev.t1) : .8 + .2 * smooth01(Math.min(1, (ev.t - ev.t1) / ev.t2));
+        evRot = ev.D * (prog - ev.prev); ev.prev = prog;
+        let a;
+        if (ev.t < ev.t1) a = Math.sin(Math.PI / 2 * ev.t / ev.t1);                                  // 0 -> deepest C
+        else { const c = Math.cos(1.5 * Math.PI * Math.min(1, (ev.t - ev.t1) / ev.t2)); a = c < 0 ? c * TUNE.counter : c; }   // C -> counter-bend -> straight
+        this.cBend = Math.sign(ev.D) * a * Math.min(1.4, Math.abs(ev.D) / 1.2);
+        if (ev.t >= ev.t1 && !ev.pushed) { ev.pushed = true; this.cur += ev.fast ? this.cruise * 2.2 : this.cruise * .25 * Math.min(1, Math.abs(ev.D)); }   // stage 2 push
+        if (ev.t >= ev.t1 + ev.t2) { this.ev = null; this.gapT = food ? rnd(.15, .4) : rnd(.8, 2.6) * (1 - urg * .7); if (ev.fast) this.lockT = rnd(.8, 1.3); }
+      }
+      this.evEnv = lerp(this.evEnv || 0, this.ev ? 1 : 0, 1 - Math.exp(-dt * 10));
+      this.burstT -= dt;
+      if (this.burstT <= 0) { this.burstT = rnd(2.4, 4.2); this.thrust = rnd(.78, .95); }   // long beat/glide rhythm, steady thrust
+      const kick = this.burstT > (this.startle > 0 ? 0 : 1.0) ? 1 : 0;
+      const thrust = Math.max(kick * this.thrust, (want - this.cur) / 3);
+      this.cur = clamp(this.cur + (thrust * 4.2 - this.cur * .55) * dt, .4, this.cruise * 4.5);
+      this.beat = lerp(this.beat, clamp(.35 + thrust * .9, .3, 1.6), 1 - Math.exp(-dt * 4));   // while swimming, always beat evenly on both sides
+      this.heading += this.contW * dt + evRot;
+      this.angVel = this.contW + evRot / Math.max(dt, 1e-4);
+      this.net = (this.net || 0) * Math.exp(-dt / 10) + this.contW * dt + evRot;   // total recent turning (signed)
+      if (this.startle <= 0) this.cur *= 1 - Math.min(.25, Math.abs(this.angVel) * .2) * dt * 2;   // slow down while turning
+      this.turn = this.angVel;
+      this.x += Math.cos(this.heading) * this.cur * dt; this.z += Math.sin(this.heading) * this.cur * dt;
     }
-    // small error: continuous, very gentle heading correction (multi-beat turn), body barely bends
-    const contT = clamp(err * (food ? .6 : .12 + urg * .9), -(food ? .5 : .07 + urg * .8), food ? .5 : .07 + urg * .8);
-    this.contW = lerp(this.contW || 0, contT, 1 - Math.exp(-dt * 2));
-    let evRot = 0; this.cBend = 0;
-    if (this.ev) {
-      const ev = this.ev; ev.t += dt;
-      // ~80% of the turn angle in stage 1 (C), the rest in stage 2 (counter-bend)
-      const prog = ev.t < ev.t1 ? .8 * smooth01(ev.t / ev.t1) : .8 + .2 * smooth01(Math.min(1, (ev.t - ev.t1) / ev.t2));
-      evRot = ev.D * (prog - ev.prev); ev.prev = prog;
-      let a;
-      if (ev.t < ev.t1) a = Math.sin(Math.PI / 2 * ev.t / ev.t1);                                  // 0 -> deepest C
-      else { const c = Math.cos(1.5 * Math.PI * Math.min(1, (ev.t - ev.t1) / ev.t2)); a = c < 0 ? c * TUNE.counter : c; }   // C -> counter-bend -> straight
-      this.cBend = Math.sign(ev.D) * a * Math.min(1.4, Math.abs(ev.D) / 1.2);
-      if (ev.t >= ev.t1 && !ev.pushed) { ev.pushed = true; this.cur += ev.fast ? this.cruise * 2.2 : this.cruise * .25 * Math.min(1, Math.abs(ev.D)); }   // stage 2 push
-      if (ev.t >= ev.t1 + ev.t2) { this.ev = null; this.gapT = food ? rnd(.15, .4) : rnd(.8, 2.6) * (1 - urg * .7); if (ev.fast) this.lockT = rnd(.8, 1.3); }
-    }
-    this.evEnv = lerp(this.evEnv || 0, this.ev ? 1 : 0, 1 - Math.exp(-dt * 10));
-    this.burstT -= dt;
-    if (this.burstT <= 0) { this.burstT = rnd(2.4, 4.2); this.thrust = rnd(.78, .95); }   // long beat/glide rhythm, steady thrust
-    const kick = this.burstT > (this.startle > 0 ? 0 : 1.0) ? 1 : 0;
-    const thrust = Math.max(kick * this.thrust, (want - this.cur) / 3);
-    this.cur = clamp(this.cur + (thrust * 4.2 - this.cur * .55) * dt, .4, this.cruise * 4.5);
-    this.beat = lerp(this.beat, clamp(.35 + thrust * .9, .3, 1.6), 1 - Math.exp(-dt * 4));   // while swimming, always beat evenly on both sides
-    this.heading += this.contW * dt + evRot;
-    this.angVel = this.contW + evRot / Math.max(dt, 1e-4);
-    this.net = (this.net || 0) * Math.exp(-dt / 10) + this.contW * dt + evRot;   // total recent turning (signed)
-    if (this.startle <= 0) this.cur *= 1 - Math.min(.25, Math.abs(this.angVel) * .2) * dt * 2;   // slow down while turning
-    this.turn = this.angVel;
-    this.x += Math.cos(this.heading) * this.cur * dt; this.z += Math.sin(this.heading) * this.cur * dt;
     this.nextDepth -= dt;
     if (this.nextDepth < 0 && !this.food) { this.ty = -rnd(.9, 5); this.nextDepth = rnd(6, 16); }
     this.y = lerp(this.y, this.ty, 1 - Math.exp(-dt * .5));
@@ -1255,12 +1265,12 @@ class Koi {
       for (let k = 1; k <= 8; k++) {
         // segment heading = (turn trail, reduced by follow) + drawn C shape: z(s) = depth * cBend * ((s-.4)^2 - .16) / .2
         // -> both ends curl into the turn, tail offset exactly depth; angle taken from the derivative so the body doesn't stretch
-        const sm = (k - .5) / 8, dz = TUNE.depth * this.cBend * 2 * (sm - .4) / (.2 * 6.39);
+        const sm = (k - .5) / 8, dz = (this.bendDepth ?? TUNE.depth) * this.cBend * 2 * (sm - .4) / (.2 * 6.39);
         // the trail-following bend is only transient: subtract its lagged copy (rSlow) -> body bends entering a turn, and on a long turn
         // the body straightens itself after ~relax seconds and heading changes via tail beats, not holding a banana shape
         const rf = angDiff(A[k - 1] + angDiff(A[k], A[k - 1]) / 2, this.heading) * TUNE.follow, rs = this.rSlow || (this.rSlow = new Array(9).fill(0));
         rs[k] = lerp(rs[k], rf, 1 - Math.exp(-dt / TUNE.relax));
-        const r = rf - rs[k] * TUNE.straighten - Math.asin(clamp(dz, -.9, .9));
+        const r = rf - rs[k] * (this.script ? 0 : TUNE.straighten) - Math.asin(clamp(dz, -.9, .9));   // scripted (intro) koi keep hugging their circle
         X.push(X[k - 1] - Math.cos(r) * seg); Z.push(Z[k - 1] - Math.sin(r) * seg);
       }
       // shift so the pivot (s0, near the head) coincides with the fish's origin
@@ -1270,7 +1280,7 @@ class Koi {
       // remove the steady long-lasting bend (fish circling the elliptical pond always turn slightly toward the center) -> tail beats evenly on both sides;
       // the transient bend while turning is kept as is
       const slow = this.bendSlow || (this.bendSlow = new Array(9).fill(0)), ks = 1 - Math.exp(-dt * .25);
-      for (let k = 0; k <= 8; k++) { const z = Z[k] + oz; slow[k] = lerp(slow[k], z, ks); SX[k] = X[k] + ox; SZ[k] = z - slow[k] * .25; }
+      for (let k = 0; k <= 8; k++) { const z = Z[k] + oz; slow[k] = lerp(slow[k], z, ks); SX[k] = X[k] + ox; SZ[k] = z - slow[k] * (this.script ? 0 : .25); }
       this.U.uTurn.value = 0;
     }
     // pectoral fins: slow/braking -> spread; fast -> folded against the body; turning -> fin on the inside of the turn (+z when turn > 0) spreads more
@@ -1680,7 +1690,7 @@ class Frog {
 
 function setNight(on) {
   NIGHT.on = on;
-  const b = document.getElementById('night'); if (b) { b.textContent = on ? '☀ Day' : '☾ Night'; b.classList.toggle('on', on); }
+  emitState();
   // butterflies, dragonflies go to sleep; fly again in the morning
   if (on) for (const b of insects) b.dying = true;
   else if (season && !insects.some(b => !b.dying)) insects.push(...SEASON_INSECTS[season]());
@@ -1714,6 +1724,7 @@ function updateNight(dt, t) {
   for (let i = N.frogs.length - 1; i >= 0; i--) { const f = N.frogs[i]; f.update(dt, t, k); if (f.done) { f.dispose(); N.frogs.splice(i, 1); } }
 }
 
+let seasonTarget = null;   // season being switched to (the UI shows it before the new layers finish drawing)
 let layers = [], season = null, sprites = {}, busy = false, pending = null;
 const drifters = [];                                 // falling + floating objects
 const spriteMesh = (c, size) => {
@@ -1722,9 +1733,10 @@ const spriteMesh = (c, size) => {
 };
 
 async function setSeason(key) {
+  seasonTarget = key;
   if (busy) { pending = key; return; }
   if (key === season) return; busy = true;
-  document.querySelectorAll('.toolbar [data-season]').forEach(b => b.classList.toggle('on', b.dataset.season === key));
+  emitState(key);
   const S = SEASONS[key];
   const [floorC, shoreC, treeC, sp, plants] = await Promise.all([raster(floorArt(S)), raster(shoreArt(S, key)), raster(treeArt(S, key)), spriteSet(key), buildPlants(S, key)]);
   await document.fonts.load('34px "Yuji Syuku"').catch(() => {});
@@ -1781,7 +1793,7 @@ function slotPlan(key) {
       const p = Ink.bez(tw.c, t), q = Ink.bez(tw.c, Math.max(0, t - .03)), a = Math.atan2(p[1] - q[1], p[0] - q[0]);
       if (key === 'autumn') {
         // maple: leaves in opposite pairs, one extra leaf at the twig tip
-        for (const sd of t === 1 ? [-1, 0, 1] : [-1, 1]) out.push({ dx: p[0], dy: p[1], ang: a + sd * (.95 + r() * .45) + (r() - .5) * .25, size: 10 + r() * 6, v: Math.floor(r() * 6) });
+        for (const sd of t === 1 ? [-1, 0, 1] : [-1, 1]) out.push({ dx: p[0], dy: p[1], ang: a + sd * (.95 + r() * .45) + (r() - .5) * .25, size: 8.5 + r() * 5, v: Math.floor(r() * 8) });
       } else {
         // cherry: clusters of 3-4 blossoms on long stalks, from one node
         const n = 3 + Math.floor(r() * 2);
@@ -2197,13 +2209,120 @@ canvas.addEventListener('click', (e) => {
   const [dx, dy] = w2d(w.x, w.z, SURF_Y);
   if (pondE(dx, dy) < .92) tossFood(w.x, w.z);
 });
-document.querySelectorAll('.toolbar [data-season]').forEach(b => b.addEventListener('click', () => { auto = false; document.getElementById('auto').classList.remove('on'); setSeason(b.dataset.season); }));
-let auto = true, autoT = 0;
-document.getElementById('auto').addEventListener('click', (e) => { auto = !auto; e.currentTarget.classList.toggle('on', auto); autoT = 0; });
-document.getElementById('night').addEventListener('click', () => { auto = false; document.getElementById('auto').classList.remove('on'); setNight(!NIGHT.on); });
+// Scene control (the ink-brush corner panel in index.html): pin a season and/or day/night; whatever is left
+// unpinned keeps cycling -- one day then one night per season, the next season arriving in the morning.
+const CTRL = { season: null, time: null };
+let autoT = 0;
+function emitState(seasonNow = seasonTarget || season) {
+  document.dispatchEvent(new CustomEvent('koi:state', { detail: { season: seasonNow, night: NIGHT.on, pinSeason: CTRL.season, pinTime: CTRL.time } }));
+}
+window.KOI_CTRL = {
+  pinSeason(key) { CTRL.season = key || null; autoT = 0; if (key) setSeason(key); emitState(key || season); },
+  pinTime(t) { CTRL.time = t || null; autoT = 0; if (t) setNight(t === 'night'); emitState(); },
+  get state() { return { season: seasonTarget || season, night: NIGHT.on, pinSeason: CTRL.season, pinTime: CTRL.time }; },
+};
+
+// ---------- Intro stage ----------
+// Before the pond is shown, two koi -- paper-white with ink patches, ink-black with white clouds -- swim in over plain
+// paper from opposite sides, fall into a circle and chase each other like yin and yang. On the viewer's click
+// (KOI_STAGE.exit, called by src/intro.js) one swims off upward, the other downward, while the paper dissolves from the
+// centre like an ink drop bleeding into wet washi and the pond appears. src/intro.js draws the lettering and the ensō.
+const STAGE = { on: true, phase: 'enter', reveal: -1, koi: [], geo: null };
+const introScene = new THREE.Scene();
+introScene.add(new THREE.HemisphereLight('#fffaf0', '#8a8370', 1.15));
+{ const l = new THREE.DirectionalLight('#fff8e8', 2.1); l.position.set(-24, 62, -20); introScene.add(l); }
+const INTRO_Y = -1;
+const _ray = new THREE.Raycaster(), _plane = new THREE.Plane(new THREE.Vector3(0, 1, 0), -INTRO_Y), _hit = new THREE.Vector3();
+function screenToWorld(sx, sy) {
+  const r = canvas.getBoundingClientRect();
+  _ray.setFromCamera({ x: (sx - r.left) / r.width * 2 - 1, y: -((sy - r.top) / r.height * 2 - 1) }, camera);
+  _ray.ray.intersectPlane(_plane, _hit); return [_hit.x, _hit.z];
+}
+// the circle sits at the centre of the window, radius 16% of its short side (same geometry as src/intro.js)
+function stageGeo() {
+  const W = innerWidth, H = innerHeight, [cxw, czw] = screenToWorld(W / 2, H / 2), [rx] = screenToWorld(W / 2 + Math.min(W, H) * .16, H / 2), [ex] = screenToWorld(0, H / 2);
+  const Rs = rx - cxw; return { cx: cxw, cz: czw, Rs, R: Rs * .7, half: cxw - ex };   // koi circle close together, well inside the ensō
+}
+// path: swim in along a horizontal line that meets the circle tangentially, then circle clockwise (on screen)
+function introPath(k, d) {
+  const g = STAGE.geo, sgn = k.white ? 1 : -1, line = g.half + k.len * 1.3, x0 = g.cx - sgn * line;
+  if (d < line) return [x0 + sgn * d, g.cz - sgn * g.R, k.white ? 0 : Math.PI];
+  const a = (k.white ? -Math.PI / 2 : Math.PI / 2) + (d - line) / g.R;
+  return [g.cx + g.R * Math.cos(a), g.cz + g.R * Math.sin(a), a + Math.PI / 2];
+}
+function introScript(k, dt) {
+  const g = STAGE.geo, h0 = k.heading;
+  if (STAGE.phase === 'exit') {
+    k.cur = Math.min(k.cur + dt * g.R * 2.6, g.R * 8); k.heading += clamp(angDiff(k.exitDir, k.heading), -dt * 3.2, dt * 3.2);
+    k.x += Math.cos(k.heading) * k.cur * dt; k.z += Math.sin(k.heading) * k.cur * dt;
+  } else {
+    const line = g.half + k.len * 1.3;
+    k.cur = k.d < line ? Math.max(g.R * 1.3, (line - k.d) * 1.2) : g.R * 1.05;
+    k.d += k.cur * dt; [k.x, k.z, k.heading] = introPath(k, k.d);
+    if (!STAGE.arrived && STAGE.koi.every(f => f.d > g.half + f.len * 1.3 + g.R * .8)) { STAGE.arrived = true; document.dispatchEvent(new Event('koi:circle')); }
+  }
+  k.angVel = angDiff(k.heading, h0) / Math.max(dt, 1e-4); k.turn = k.angVel;
+  // on the circle the body curls into a C around the centre (yin-yang); straight while swimming in, and when leaving
+  const onCircle = STAGE.phase !== 'exit' && k.d > STAGE.geo.half + k.len * 1.3;
+  k.cBend = lerp(k.cBend || 0, onCircle ? .4 : 0, 1 - Math.exp(-dt * 2)); k.bendDepth = .5;   // the arc itself gives most of the curve
+  k.beat = .75; k.evEnv = 0; k.pitchT = 0; k.y = k.ty = INTRO_Y;
+}
+function startStage() {
+  STAGE.geo = stageGeo();
+  const size = 1.05 * STAGE.geo.Rs / (6.39 * KOI_SCALE);
+  for (const white of [true, false]) {
+    const k = new Koi({ variant: white ? 13 : 14, size, x: 0, z: 0, y: INTRO_Y, ty: INTRO_Y, heading: 0, cruise: 4 });
+    k.root.removeFromParent(); introScene.add(k.root);
+    Object.assign(k, { white, d: 0, len: 6.39 * KOI_SCALE * size, exitDir: white ? -Math.PI / 2 : Math.PI / 2, script: introScript, nextDepth: Infinity, sipT: Infinity });
+    [k.x, k.z, k.heading] = introPath(k, 0); k.segA = new Array(9).fill(k.heading);
+    STAGE.koi.push(k);
+  }
+}
+// paper over the pond, with the ink-drop hole; uses the intro's own paper canvas so the hand-off is seamless
+const paperU = { uPaper: { value: null }, uHas: { value: 0 }, uCss: { value: new THREE.Vector2(1, 1) }, uOff: { value: new THREE.Vector2() }, uWin: { value: new THREE.Vector2(1, 1) }, uHole: { value: 0 }, uRim: { value: 0 }, uTime: { value: 0 } };
+const paperPass = pass(/* glsl */ `
+  uniform sampler2D uPaper; uniform float uHas, uHole, uRim, uTime; uniform vec2 uCss, uOff, uWin; varying vec2 vUv;
+  void main() {
+    vec2 win = vec2(vUv.x * uCss.x, (1.0 - vUv.y) * uCss.y) + uOff;            // window pixels, from the top-left
+    vec3 paper = uHas > .5 ? texture(uPaper, vec2(win.x / uWin.x, 1.0 - win.y / uWin.y)).rgb : vec3(.93, .9, .83);
+    vec2 d = win - uWin * .5; float a = atan(d.y, d.x), r = length(d);
+    float n = sin(a * 5.0 + 1.3) * .5 + sin(a * 11.0 + uTime * 2.0) * .3 + sin(a * 23.0 - uTime * 3.0) * .2;
+    float edge = uHole * (1.0 + .08 * n), keep = uHole > 0.0 ? smoothstep(edge - 5.0, edge + 7.0, r) : 1.0;
+    float rim = uHole > 0.0 ? smoothstep(edge + 46.0, edge + 2.0, r) * keep : 0.0;   // ink bleeding just outside the opening
+    gl_FragColor = vec4(mix(paper, vec3(.08, .08, .07), rim * uRim), keep);
+    #include <colorspace_fragment>
+  }`, paperU);
+paperPass.m.transparent = true;
+let paperSrc = null;
+function renderStage(dt) {
+  const S = STAGE;
+  if (window.KOI_PAPER && window.KOI_PAPER !== paperSrc) {
+    paperSrc = window.KOI_PAPER; paperU.uPaper.value?.dispose();
+    paperU.uPaper.value = new THREE.CanvasTexture(paperSrc); paperU.uPaper.value.colorSpace = THREE.SRGBColorSpace; paperU.uHas.value = 1;
+  }
+  const r = canvas.getBoundingClientRect();
+  paperU.uCss.value.set(r.width, r.height); paperU.uOff.value.set(r.left, r.top); paperU.uWin.value.set(innerWidth, innerHeight);
+  if (S.phase === 'exit') {
+    S.reveal += dt; paperU.uTime.value = S.reveal;
+    const u = clamp((S.reveal - .35) / 1.7, 0, 1), e = u < .5 ? 4 * u * u * u : 1 - Math.pow(-2 * u + 2, 3) / 2;
+    paperU.uHole.value = e * Math.hypot(innerWidth, innerHeight) * .62; paperU.uRim.value = .6 * (1 - u);
+    if (u >= 1) {
+      S.on = false;
+      for (const k of S.koi) { k.root.removeFromParent(); k.root.traverse(o => { if (o.isMesh) o.material.dispose?.(); }); }
+      S.koi.length = 0; document.dispatchEvent(new Event('koi:stage-done'));
+      return;
+    }
+  }
+  for (const k of S.koi) k.update(dt, performance.now() / 1000, S.koi, null);
+  renderer.render(paperPass.s, qCam);
+  renderer.render(introScene, camera);
+}
+window.KOI_STAGE = { exit() { if (STAGE.phase !== 'exit') { STAGE.phase = 'exit'; STAGE.reveal = 0; } } };
 
 // ---------- Loop ----------
 await setSeason('spring');
+startStage();
+window.KOI_READY = true; document.dispatchEvent(new Event('koi:ready'));   // the intro waits for this
 const timer = new THREE.Timer(); timer.connect(document);
 const ORDER = ['spring', 'summer', 'autumn', 'winter'];
 let windA = Math.PI * .85, spawnAcc = 0;
@@ -2211,8 +2330,16 @@ let windA = Math.PI * .85, spawnAcc = 0;
 renderer.setAnimationLoop((ts) => {
   timer.update(ts);
   const dt = Math.min(timer.getDelta(), 1 / 30), t = timer.getElapsed(), S = SEASONS[season];
-  // auto-cycle: each season one day then one night, next season in the morning
-  if (auto && !busy) { autoT += dt; if (!NIGHT.on && autoT > 24) { autoT = 0; setNight(true); } else if (NIGHT.on && autoT > 16) { autoT = 0; setNight(false); setSeason(ORDER[(ORDER.indexOf(season) + 1) % 4]); } }
+  // auto-cycle whatever is not pinned: each season one day then one night, next season in the morning;
+  // with the time of day pinned, seasons still turn every 40 s
+  if (!busy) {
+    autoT += dt;
+    const next = ORDER[(ORDER.indexOf(season) + 1) % 4];
+    if (!CTRL.time) {
+      if (!NIGHT.on && autoT > 24) { autoT = 0; setNight(true); }
+      else if (NIGHT.on && autoT > 16) { autoT = 0; setNight(false); if (!CTRL.season) setSeason(next); }
+    } else if (!CTRL.season && autoT > 40) { autoT = 0; setSeason(next); }
+  }
 
   // Wind: main direction from the tree corner (top right) blowing toward bottom left, in gusts.
   const gust = updateWind(dt, t);
@@ -2379,5 +2506,6 @@ renderer.setAnimationLoop((ts) => {
   renderer.render(overScene, camera);
   updateNight(dt, t);
   if (NIGHT.k > 0) renderNight(t, gust, wind);
+  if (STAGE.on) renderStage(dt);
 });
 window.__pond = { camera, fish, drifters, setSeason, layers, slots, insects, foods, tossFood, get busy() { return busy; }, get season() { return season; } };
