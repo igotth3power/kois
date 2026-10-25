@@ -71,6 +71,8 @@
         <button class="ink" data-time="day" title="Day (N)" data-icon="day"></button>
         <button class="ink" data-time="night" title="Night (N)" data-icon="night"></button>
         <span class="dot"></span>
+        <button class="ink" data-rain title="Rain (R)" data-icon="rain"></button>
+        <span class="dot"></span>
         <button class="ink" id="infoBtn" title="Info (I)" data-icon="info"></button>
       </div>
     </div>
@@ -79,7 +81,7 @@
       <p>Koi: "Koi Fish" by 7PLUS · <a href="https://sketchfab.com/3d-models/koi-fish-236859b809984f52b70c94fd040b9c59">Sketchfab</a> · CC BY 4.0</p>
       <p>Frog: "Frog" by Thunk3D scanner (Diana123456) · <a href="https://sketchfab.com/3d-models/frog-436deb1555fa42b9bc146e1b6b0d1ebc">Sketchfab</a> · CC BY 4.0 · decimated and repainted</p>
       <p>Music: koto tracks from Pixabay</p>
-      <p class="keys">Move the mouse over the water to stir it · Click to drop food · Pick a season or day/night to pin it (pick again to let it cycle) · Keys 1–4 season · N day/night · M music · I info</p>
+      <p class="keys">Move the mouse over the water to stir it · Click to drop food · Pick a season, day/night or rain to pin it (pick again to let it cycle) · Keys 1–4 season · N day/night · R rain · M music · I info</p>
     </div>
     <script>
       // ---- ink icons (viewBox 40x40): the life of a blossom for the seasons, sun and moon for day and night ----
@@ -111,6 +113,9 @@
         day: '<circle cx="20" cy="20" r="6.5" fill="var(--sun)"/>' + [0, 45, 90, 135, 180, 225, 270, 315].map(a => { const c = Math.cos(a * Math.PI / 180), s = Math.sin(a * Math.PI / 180); return `<path d="M${20 + c * 9} ${20 + s * 9} L${20 + c * 11.5} ${20 + s * 11.5}" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" opacity=".8"/>`; }).join(''),
         // 夜 moon: an ink crescent with a faint star
         night: '<path d="M23 10.5 A9.5 9.5 0 1 0 29.5 25 A7.5 7.5 0 1 1 23 10.5Z" fill="currentColor" opacity=".9"/><circle cx="28" cy="13" r=".9" fill="currentColor" opacity=".7"/>',
+        // 雨 rain: a low brushed cloud with slanted streaks falling from it
+        rain: '<path d="M10.5 15 C12.5 11 17.5 10.5 20.5 13 C23 10.5 28 11 29.5 15" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/>' +
+          [[14.5, 18.5], [20.5, 18], [26.5, 18.5], [17.5, 25], [23.5, 25]].map(([x, y]) => `<path d="M${x} ${y} L${x - 2.2} ${y + 5}" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" opacity=".8"/>`).join(''),
         // 音 music: a koto bridge (ji) with three strings
         music: '<path d="M8 14 L32 14 M8 20 L32 20 M8 26 L32 26" stroke="currentColor" stroke-width=".9" opacity=".7"/><path d="M15 29 L19 11 L23 29" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"/><path d="M14 29 L24 29" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/>',
         info: '<text x="20" y="27" text-anchor="middle" font-family="Georgia, serif" font-style="italic" font-size="17" fill="currentColor">i</text>',
@@ -128,6 +133,7 @@
         $('#main').innerHTML = svg(st.season || 'spring');
         $$('[data-season]').forEach(b => { b.classList.toggle('pin', st.pinSeason === b.dataset.season); b.classList.toggle('cur', !st.pinSeason && st.season === b.dataset.season); });
         $$('[data-time]').forEach(b => { const t = b.dataset.time; b.classList.toggle('pin', st.pinTime === t); b.classList.toggle('cur', !st.pinTime && (t === 'night') === st.night); });
+        $$('[data-rain]').forEach(b => { b.classList.toggle('pin', !!st.pinRain); b.classList.toggle('cur', !st.pinRain && !!st.rain); });
       }
       document.addEventListener('koi:state', e => paint(e.detail));
       document.addEventListener('koi:music', e => $('#music').classList.toggle('off', e.detail.muted));
@@ -135,15 +141,17 @@
       $('#main').onclick = () => openStrip(!$('#strip').classList.contains('open'));
       $$('[data-season]').forEach(b => b.onclick = () => { const st = ctrl()?.state; if (st) ctrl().pinSeason(st.pinSeason === b.dataset.season ? null : b.dataset.season); });
       $$('[data-time]').forEach(b => b.onclick = () => { const st = ctrl()?.state; if (st) ctrl().pinTime(st.pinTime === b.dataset.time ? null : b.dataset.time); });
+      $('[data-rain]').onclick = () => { const st = ctrl()?.state; if (st) ctrl().pinRain(!st.pinRain); };
       $('#music').onclick = () => window.KOI_MUSIC?.toggle();
       $('#infoBtn').onclick = () => $('#info').classList.toggle('on');
       addEventListener('load', () => { $('#music').classList.toggle('off', !!window.KOI_MUSIC?.muted); paint(ctrl()?.state); });
-      // keyboard: 1-4 pin/unpin a season, N cycles the day/night pin (none -> day -> night -> none), M music, I info
+      // keyboard: 1-4 pin/unpin a season, N cycles the day/night pin (none -> day -> night -> none), R pins/unpins rain, M music, I info
       addEventListener('keydown', e => {
         if (e.ctrlKey || e.metaKey || e.altKey) return;
         const k = e.key.toLowerCase(), seasons = { 1: 'spring', 2: 'summer', 3: 'autumn', 4: 'winter' };
         if (seasons[k]) $(`[data-season="${seasons[k]}"]`).click();
         else if (k === 'n') { const st = ctrl()?.state; if (st) ctrl().pinTime(st.pinTime === null ? 'day' : st.pinTime === 'day' ? 'night' : null); }
+        else if (k === 'r') $('[data-rain]').click();
         else if (k === 'm') $('#music').click();
         else if (k === 'i') { openStrip(true); $('#info').classList.toggle('on'); }
       });

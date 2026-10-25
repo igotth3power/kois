@@ -374,6 +374,7 @@ const w2uv = (x, y, z) => { tmpV.set(x, y, z).project(camera); return [tmpV.x * 
 const d2uv = (dx, dy) => [dx / DW, 1 - dy / DH];
 
 // ---------- Pond shape: ellipse with harmonic noise, shared by drawing and fish shore avoidance ----------
+let ROCKS = [];                                      // shore rocks of the current painting [x, y, size] (design px): rain splashes off them
 const POND = { cx: 468, cy: 296, rx: 338, ry: 200, harm: [[2, .045, 1.1], [3, .06, .4], [5, .028, 2.2], [7, .016, .9]] };
 const pondR = (th) => POND.harm.reduce((r, [k, a, p]) => r + a * Math.sin(k * th + p), 1);
 const pondPt = (th, s = 1) => { const r = pondR(th) * s; return [POND.cx + Math.cos(th) * POND.rx * r, POND.cy + Math.sin(th) * POND.ry * r]; };
@@ -456,9 +457,11 @@ function shoreArt(S, key) {
     if (big && r() < .6) rocks.push([th + (r() - .5) * .05, 1.1 + r() * .05, 5 + r() * 6]);
   }
   for (const [th, k, sz] of [[2.3, 1.1, 30], [2.45, 1.16, 20], [2.15, 1.18, 16], [.15, 1.1, 26], [.32, 1.15, 16], [4.4, 1.1, 18], [3.6, 1.12, 22]]) rocks.push([th, k, sz]);
+  ROCKS = [];
   rocks.forEach(([th, k, sz], i) => {
     const [x, y] = pondPt(th, k);
     if (x > 600 && y < 150) return;                 // under the tree canopy at top right, leave empty
+    ROCKS.push([x, y, sz]);
     Ink.rock(s, x, y, sz, 700 + i, { moss: S.moss, hi: S.paper });
     if (key === 'winter') E(s, 'path', { d: blob(x - sz * .1, y - sz * .3, sz * .75, sz * .38, 800 + i, .3, 8), fill: '#fdfcf8', opacity: .95, filter: 'url(#brushF)' });
   });
@@ -1367,7 +1370,7 @@ const wave = pass(/* glsl */ `
 
 let sceneRT = new THREE.WebGLRenderTarget(4, 4, { type: THREE.HalfFloatType, samples: 4 });
 const comp = pass(/* glsl */ `
-  uniform sampler2D uScene, uStir, uWave; uniform vec2 uWaveTexel, uWind; uniform float uTime, uGust, uAspect; uniform vec3 uPaper; varying vec2 vUv;
+  uniform sampler2D uScene, uStir, uWave; uniform vec2 uWaveTexel, uWind; uniform float uTime, uGust, uAspect, uRain; uniform vec3 uPaper; varying vec2 vUv;
   float hash(vec2 p) { return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453); }
   float noise(vec2 p) { vec2 i = floor(p), f = fract(p); f = f * f * (3.0 - 2.0 * f); return mix(mix(hash(i), hash(i + vec2(1, 0)), f.x), mix(hash(i + vec2(0, 1)), hash(i + vec2(1, 1)), f.x), f.y); }
   float H(vec2 uv) { return texture(uWave, uv).r; }
@@ -1387,9 +1390,24 @@ const comp = pass(/* glsl */ `
     col = mix(col, uPaper * 1.04, smoothstep(.003, .03, -lap) * .4);
     float streak = smoothstep(.6, .85, noise(vec2(q.x * 5.0 - uTime * .5, q.y * 1.3)));
     col = mix(col, uPaper * 1.06, streak * .06 * uGust);
+    // rain: the surface goes blotchy -- slowly drifting darker and paler patches
+    float bl = noise(p * 7.0 + vec2(uTime * .07, -uTime * .05)) * .65 + noise(p * 19.0 - uTime * .2) * .35;
+    col = mix(col, col * .8, uRain * smoothstep(.45, .75, bl) * .55);
+    col = mix(col, uPaper, uRain * smoothstep(.62, .85, 1.0 - bl) * .12);
     gl_FragColor = vec4(col, 1.0);
     #include <colorspace_fragment>
-  }`, { uScene: { value: null }, uStir: { value: null }, uWave: { value: null }, uWaveTexel: { value: new THREE.Vector2(1 / WAVE_W, 1 / WAVE_H) }, uWind: { value: new THREE.Vector2(-1, .4) }, uTime: { value: 0 }, uGust: { value: 0 }, uAspect: { value: ASPECT }, uPaper: { value: new THREE.Color() } });
+  }`, { uScene: { value: null }, uStir: { value: null }, uWave: { value: null }, uWaveTexel: { value: new THREE.Vector2(1 / WAVE_W, 1 / WAVE_H) }, uWind: { value: new THREE.Vector2(-1, .4) }, uTime: { value: 0 }, uGust: { value: 0 }, uAspect: { value: ASPECT }, uPaper: { value: new THREE.Color() }, uRain: { value: 0 } });
+
+// Objects sinking under the surface are part of the underwater render, which the composite shifts by the pointer stir
+// (the stirred-water drag). Shift them the opposite way first, so the stir drags only the water, not what has sunk.
+function holdAgainstStir(mat) {
+  mat.onBeforeCompile = sh => {
+    sh.uniforms.uStir = comp.u.uStir;
+    sh.vertexShader = 'uniform sampler2D uStir;\n' + sh.vertexShader.replace('#include <project_vertex>', `#include <project_vertex>
+      { vec4 c0 = projectionMatrix * modelViewMatrix * vec4(0.0, 0.0, 0.0, 1.0); gl_Position.xy -= 2.0 * texture(uStir, c0.xy / c0.w * .5 + .5).xy * gl_Position.w; }`);
+  };
+  mat.customProgramCacheKey = () => 'holdAgainstStir'; mat.needsUpdate = true;
+}
 
 function fit() {
   const w = canvas.clientWidth || DW, h = Math.round(w / ASPECT);
@@ -1551,10 +1569,11 @@ const lampFlame = glow(1.4, '#ffd590', SHORE_Y + .4), lampHalo = glow(7, '#ffb05
 { const [lx, lz] = d2w(...LANTERN_D, SHORE_Y + .4); lampFlame.position.x = lampHalo.position.x = lx; lampFlame.position.z = lampHalo.position.z = lz; }
 glowScene.add(lampHalo, lampFlame);
 // Moon reflection: sharp round moon disc on the water, with faint dark maria and a soft halo; drawn additively after the dark layer.
-// Wave normals + stir marks + wind ripples make the moon reflection sway and break; floating objects (lotus leaves, flowers, shore) occlude it via the occRT mask.
+// Wave normals + stir marks + wind ripples make the moon reflection sway and break; floating objects (lotus leaves, flowers, shore) occlude it via the occRT mask
+// and are lit by the moon in its place.
 const occRT = new THREE.WebGLRenderTarget(4, 4);
 const moonP = pass(/* glsl */ `
-  uniform sampler2D uWave, uStir, uOcc; uniform vec2 uWaveTexel, uMoonP, uWind; uniform float uK, uAspect, uR, uTime, uGust; uniform vec3 uCol; varying vec2 vUv;
+  uniform sampler2D uWave, uStir, uOcc; uniform vec2 uWaveTexel, uMoonP, uWind, uCloudOff; uniform float uK, uAspect, uR, uTime, uGust, uCloud; uniform vec3 uCol; varying vec2 vUv;
   float hash(vec2 p) { return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453); }
   float noise(vec2 p) { vec2 i = floor(p), f = fract(p); f = f * f * (3.0 - 2.0 * f); return mix(mix(hash(i), hash(i + vec2(1, 0)), f.x), mix(hash(i + vec2(0, 1)), hash(i + vec2(1, 1)), f.x), f.y); }
   float H(vec2 uv) { return texture(uWave, uv).r; }
@@ -1571,11 +1590,21 @@ const moonP = pass(/* glsl */ `
     float disc = 1.0 - smoothstep(uR - px, uR + px, r);
     float mare = smoothstep(.45, .75, noise(d / uR * 2.0 + 4.0)) * .3 + smoothstep(.55, .85, noise(d / uR * 4.5 + 9.0)) * .14;   // dark maria on the moon
     float halo = exp(-max(r - uR, 0.0) * 30.0) * .28 + exp(-r * r / .03) * .08;
-    float occ = texture(uOcc, vUv).a;
+    // rain clouds drifting past: the moon shows through the gaps now and then
+    vec2 cp = (vUv - uMoonP) * vec2(uAspect, 1.0) * 6.0 + uCloudOff;
+    float cover = uCloud * smoothstep(.38, .62, noise(cp) * .6 + noise(cp * 2.3 + 5.0) * .4);
+    disc *= 1.0 - .93 * cover; halo *= 1.0 - .85 * cover;
+    vec4 o = texture(uOcc, vUv); float occ = o.a;
     float limb = 1.0 - .22 * (r / uR) * (r / uR);                                          // moon limb darker than the center
     vec3 c = uCol * (disc * (.85 - mare) * limb + halo) * (1.0 - occ) * uK;
+    // whatever floats over the reflection (lotus leaf, flower, frog) is lit silver by the moon instead of blotting it out:
+    // its own colour (veins and all) brightened where the moon falls, with a soft edge; not moved by the ripples
+    vec3 top = pow(o.rgb / max(o.a, 1e-3), vec3(1.0 / 2.2)); top = mix(top, vec3(dot(top, vec3(.3, .59, .11))), .35);
+    float r0 = length((vUv - uMoonP) * vec2(uAspect, 1.0));
+    float lit = (1.0 - smoothstep(uR * .5, uR * 1.5, r0)) * .85 + exp(-r0 * r0 / .004) * .25;
+    c += uCol * (top * 1.1 + .06) * lit * occ * uK * (1.0 - .9 * cover);
     gl_FragColor = vec4(c, 1.0);
-  }`, { uWave: { value: null }, uStir: { value: null }, uOcc: { value: occRT.texture }, uWaveTexel: { value: new THREE.Vector2(1 / WAVE_W, 1 / WAVE_H) }, uMoonP: { value: new THREE.Vector2(...d2uv(...MOON_D)) }, uWind: { value: new THREE.Vector2(-1, 0) }, uK: { value: 0 }, uAspect: { value: ASPECT }, uR: { value: .042 }, uTime: { value: 0 }, uGust: { value: 0 }, uCol: { value: new THREE.Color() } });
+  }`, { uWave: { value: null }, uStir: { value: null }, uOcc: { value: occRT.texture }, uWaveTexel: { value: new THREE.Vector2(1 / WAVE_W, 1 / WAVE_H) }, uMoonP: { value: new THREE.Vector2(...d2uv(...MOON_D)) }, uWind: { value: new THREE.Vector2(-1, 0) }, uK: { value: 0 }, uAspect: { value: ASPECT }, uR: { value: .042 }, uTime: { value: 0 }, uGust: { value: 0 }, uCol: { value: new THREE.Color() }, uCloud: { value: 0 }, uCloudOff: { value: new THREE.Vector2() } });
 moonP.m.blending = THREE.AdditiveBlending; moonP.m.transparent = true;
 const _sz = new THREE.Vector2();
 // draw the night part after the day layers: floating-object mask -> dark layer -> moon reflection -> lantern, fireflies
@@ -1587,10 +1616,170 @@ function renderNight(t, gust, wind) {
   renderer.setRenderTarget(null);
   renderer.render(nightScene, qCam);
   const U = moonP.u;
-  U.uWave.value = waveBuf.read.texture; U.uStir.value = stirBuf.read.texture; U.uK.value = nightQ.material.uniforms.uK.value;
+  U.uWave.value = waveBuf.read.texture; U.uStir.value = stirBuf.read.texture; U.uK.value = nightQ.material.uniforms.uK.value * (1 - .3 * smooth01(RAIN.k));
+  U.uCloud.value = smooth01(RAIN.k); U.uCloudOff.value.set(-wind.x * t * .3, wind.y * t * .3);
   U.uTime.value = t; U.uGust.value = gust; U.uWind.value.set(wind.x, -wind.y); U.uCol.value.set(NIGHT_SET[season].moon).convertLinearToSRGB();
   renderer.render(moonP.s, qCam);
   renderer.render(glowScene, camera);
+}
+
+// ---------- Rain ----------
+// A quiet ink-wash shower, not a storm. The scene greys over (a light cool multiply, like the night layer); drops fall
+// as 3D streaks seen from above and land on whatever is below: rings on open water, a spray off the rocks, a tap on a
+// lotus leaf; floating petals and leaves soak and sink sooner, and the tree sheds more. The water turns blotchy and
+// pitted. Dragonflies and butterflies shelter on leaves until it passes, fireflies stay hidden; at night dark clouds
+// drift across the moon and the stone lantern burns low. A shower comes and goes on its own now and then (never in
+// winter, which has its snow) unless rain is pinned from the corner control.
+const RAIN = { on: false, k: 0, level: 0, next: rnd(40, 90), left: 0, sound: -1 };
+const greyQ = new THREE.Mesh(quadGeo, new THREE.ShaderMaterial({
+  vertexShader: QV, depthTest: false, depthWrite: false, transparent: true,
+  blending: THREE.CustomBlending, blendEquation: THREE.AddEquation, blendSrc: THREE.DstColorFactor, blendDst: THREE.ZeroFactor,
+  uniforms: { uK: { value: 0 }, uAspect: { value: ASPECT }, uSheet: { value: new THREE.Vector3() } },
+  fragmentShader: /* glsl */ `
+    uniform float uK, uAspect; uniform vec3 uSheet; varying vec2 vUv;
+    void main() {
+      vec2 p = (vUv - .5) * vec2(uAspect, 1.0);
+      float vig = smoothstep(1.0, .35, length(p * .85));
+      // sheets of heavier rain: soft darker bands sweeping across with the wind (uSheet: direction xy, phase z)
+      float band = .5 + .5 * sin(dot(p, uSheet.xy) * 5.0 - uSheet.z) * sin(dot(p, uSheet.xy) * 2.1 - uSheet.z * .6 + 1.3);
+      vec3 c = vec3(.72, .76, .82) * mix(.86, 1.0, vig) * (1.0 - .09 * band);
+      gl_FragColor = vec4(mix(vec3(1.0), c, uK), 1.0);
+    }`,
+}));
+greyQ.frustumCulled = false;
+const greyScene = new THREE.Scene(); greyScene.add(greyQ);
+// drops: streaks in the world under the perspective camera, so from above they fan out from the middle of the view as
+// they fall away. Each is a ribbon between its tail and head, a couple of pixels wide (wider when nearer the camera),
+// inked at the head and fading up the tail.
+const DROPS = 1400;
+const rainGeo = new THREE.InstancedBufferGeometry();
+rainGeo.setAttribute('position', new THREE.BufferAttribute(new Float32Array([0, -1, 0, 1, -1, 0, 0, 1, 0, 1, 1, 0]), 3));   // (along, across)
+rainGeo.setIndex([0, 1, 2, 2, 1, 3]);
+const rainA = new THREE.InstancedBufferAttribute(new Float32Array(DROPS * 3), 3).setUsage(THREE.DynamicDrawUsage);
+const rainB = new THREE.InstancedBufferAttribute(new Float32Array(DROPS * 3), 3).setUsage(THREE.DynamicDrawUsage);
+const rainAl = new THREE.InstancedBufferAttribute(new Float32Array(DROPS), 1).setUsage(THREE.DynamicDrawUsage);
+rainGeo.setAttribute('aA', rainA); rainGeo.setAttribute('aB', rainB); rainGeo.setAttribute('aAlpha', rainAl); rainGeo.instanceCount = DROPS;
+const rainU = { uRes: { value: new THREE.Vector2(1, 1) }, uWidth: { value: 1.6 }, uInk: { value: new THREE.Color() } };
+const rainMesh = new THREE.Mesh(rainGeo, new THREE.ShaderMaterial({
+  uniforms: rainU, transparent: true, depthTest: false, depthWrite: false,
+  vertexShader: /* glsl */ `
+    attribute vec3 aA, aB; attribute float aAlpha; uniform vec2 uRes; uniform float uWidth; varying float vT, vS, vA;
+    void main() {
+      vec4 ca = projectionMatrix * viewMatrix * vec4(aA, 1.0), cb = projectionMatrix * viewMatrix * vec4(aB, 1.0);
+      vec2 d = (cb.xy / cb.w - ca.xy / ca.w) * uRes; float L = length(d); d = L > 1e-4 ? d / L : vec2(0.0, 1.0);
+      float w = uWidth * 80.0 / cb.w;                                       // pixels: nearer drops are wider
+      vec4 c = mix(ca, cb, position.x);
+      c.xy += vec2(-d.y, d.x) * position.y * 2.0 * w / uRes * c.w;
+      gl_Position = c; vT = position.x; vS = position.y; vA = aAlpha;
+    }`,
+  fragmentShader: /* glsl */ `
+    uniform vec3 uInk; varying float vT, vS, vA;
+    void main() {
+      float a = vA * smoothstep(0.0, .85, vT) * (1.0 - smoothstep(.35, 1.0, abs(vS)));
+      gl_FragColor = vec4(uInk, a);
+      #include <colorspace_fragment>
+    }`,
+}));
+rainMesh.frustumCulled = false;
+// splashes: where a drop lands, a small bright ring flicks out and a bead jumps, gone in a third of a second
+const SPLASHES = 700, splashPos = new THREE.BufferAttribute(new Float32Array(SPLASHES * 3), 3).setUsage(THREE.DynamicDrawUsage);
+const splashBirth = new THREE.BufferAttribute(new Float32Array(SPLASHES).fill(-9), 1).setUsage(THREE.DynamicDrawUsage);
+const splashSize = new THREE.BufferAttribute(new Float32Array(SPLASHES), 1).setUsage(THREE.DynamicDrawUsage);
+const splashGeo = new THREE.BufferGeometry();
+splashGeo.setAttribute('position', splashPos); splashGeo.setAttribute('aBirth', splashBirth); splashGeo.setAttribute('aSize', splashSize);
+const splashU = { uTime: { value: 0 }, uPx: { value: 1 }, uCol: { value: new THREE.Color() }, uA: { value: 1 } };
+const splashPts = new THREE.Points(splashGeo, new THREE.ShaderMaterial({
+  uniforms: splashU, transparent: true, depthTest: false, depthWrite: false,
+  vertexShader: /* glsl */ `
+    attribute float aBirth, aSize; uniform float uTime, uPx; varying float vAge;
+    void main() {
+      vAge = (uTime - aBirth) / .32;
+      gl_Position = projectionMatrix * viewMatrix * vec4(position, 1.0);
+      gl_PointSize = vAge < 0.0 || vAge > 1.0 ? 0.0 : aSize * uPx;
+    }`,
+  fragmentShader: /* glsl */ `
+    uniform vec3 uCol; uniform float uA; varying float vAge;
+    void main() {
+      float r = length(gl_PointCoord - .5) * 2.0, e = 1.0 - vAge;
+      float ring = (1.0 - smoothstep(.0, .16, abs(r - (.25 + .7 * vAge)))) * e * e;
+      float bead = (1.0 - smoothstep(.0, .3, r)) * max(0.0, 1.0 - vAge * 3.0);
+      gl_FragColor = vec4(uCol, (ring * .8 + bead) * uA);
+      #include <colorspace_fragment>
+    }`,
+}));
+splashPts.frustumCulled = false;
+const rainScene = new THREE.Scene(); rainScene.add(rainMesh, splashPts);
+let splashI = 0;
+function splashAt(x, y, z, size, t) {
+  const i = splashI = (splashI + 1) % SPLASHES;
+  splashPos.setXYZ(i, x, y, z); splashBirth.setX(i, t); splashSize.setX(i, size);
+}
+const rainDrops = Array.from({ length: DROPS }, () => ({ live: false, x: 0, y: 0, z: 0, vx: 0, vy: 0, vz: 0 }));
+// a drop lands: rocks splash, the bank soaks it up, lotus leaves take the tap, open water rings (within this frame's budget)
+function rainLand(x, z, budget, t) {
+  const [dx, dy] = w2d(x, z, FLOAT_Y);
+  for (const [rx, ry, sz] of ROCKS) if (Math.hypot(dx - rx, dy - ry) < sz * .8) {
+    splashAt(x, SHORE_Y + .3, z, rnd(16, 24), t);
+    if (budget.rock-- > 0 && Math.random() < .35) droplets(x, z, 2, .3);
+    return;
+  }
+  if (pondE(dx, dy) > .98) { splashAt(x, SHORE_Y + .1, z, rnd(6, 9), t); return; }   // the bank soaks it up
+  for (const d of drifters) {
+    if (d.state !== 'float' || d.dying || Math.abs(d.x - x) > 3 || Math.abs(d.z - z) > 3) continue;
+    const dd = Math.hypot(d.x - x, d.z - z);
+    if (d.big && dd < d.rad) { splashAt(x, FLOAT_Y + .1, z, rnd(12, 18), t); if (budget.leaf-- > 0 && Math.random() < .3) droplets(x, z, 1, .2); return; }
+    if (!d.big && d.sinkable && dd < .5) d.life -= 1.2;
+  }
+  splashAt(x, FLOAT_Y, z, rnd(12, 20), t);
+  if (budget.ring-- > 0) { const [u, v] = d2uv(dx, dy); splash(u, v, rnd(.004, .007), rnd(.035, .07)); }
+}
+// shelter for butterflies in the rain: under a leaf or blossom on the tree
+function shelterTarget() {
+  const on = slots.filter(s => s.state === 'on' && s.layer.fade > 0);
+  if (!on.length) return null;
+  const s = on[Math.floor(Math.random() * on.length)];
+  return { pos: () => ({ x: s.x, z: s.z, y: TREE_Y + .1 }), ok: () => s.state === 'on' };
+}
+function updateRain(dt, t, wx, wz, gust) {
+  const R = RAIN;
+  if (CTRL.rain) { if (!R.on) { R.on = true; emitState(); } }
+  else if (R.on) { if ((R.left -= dt) < 0) { R.on = false; R.next = rnd(45, 120); emitState(); } }
+  else if (!busy && !STAGE.on && season !== 'winter' && (R.next -= dt) < 0) { R.on = true; R.left = rnd(20, 40); emitState(); }
+  R.k = clamp(R.k + (R.on ? dt / 5 : -dt / 6), 0, 1);   // sets in over ~5 s, eases off over ~6 s
+  const k = smooth01(R.k);
+  R.level = k * (.75 + .25 * Math.sin(t * .23) * Math.sin(t * .61 + 1));
+  greyQ.material.uniforms.uK.value = k * .9; comp.u.uRain.value = k;
+  nightQ.material.uniforms.uMoon.value = 1 - .6 * k;
+  // drops: as many in the air as the shower is heavy; each starts upwind of a random spot in view and lands there.
+  // Ring splashes, rock sprays and leaf taps are rationed per frame (the wave shader takes 12 sources at most).
+  const night = nightQ.material.uniforms.uK.value, active = Math.round(R.level * DROPS), v0 = viewAt(FLOAT_Y), drift = 2 + gust * 7;
+  const budget = { ring: 8, rock: 1, leaf: 1 }, A = lerp(.55, .32, night);   // at night thinner, so it reads as rain, not snow
+  // sheets of heavier rain sweep across with the wind: drops are placed preferring the bands (as the overcast shows them)
+  const sw = Math.hypot(wx, wz) || 1, sx = wx / sw, sz = wz / sw, ph = t * 1.6;
+  greyQ.material.uniforms.uSheet.value.set(sx, -sz, ph);
+  const sheet = (x, z) => { const q = (x / v0.h) * sx + (z / v0.h) * sz; return .5 + .5 * Math.sin(q * 5 - ph) * Math.sin(q * 2.1 - ph * .6 + 1.3); };
+  for (let i = 0; i < DROPS; i++) {
+    const p = rainDrops[i];
+    if (!p.live) {
+      if (i >= active) { rainAl.setX(i, 0); continue; }
+      p.live = true; p.y = rnd(14, 44); p.vy = -rnd(30, 40); p.vx = wx * drift; p.vz = wz * drift;
+      let gx = 0, gz = 0;
+      for (let k = 0; k < 3; k++) { gx = rnd(-.55, .55) * v0.w; gz = rnd(-.55, .55) * v0.h; if (Math.random() < .3 + .7 * sheet(gx, gz)) break; }
+      const tl = (p.y - FLOAT_Y) / -p.vy;
+      p.x = gx - p.vx * tl; p.z = gz - p.vz * tl;
+    }
+    p.x += p.vx * dt; p.y += p.vy * dt; p.z += p.vz * dt;
+    if (p.y <= FLOAT_Y) { p.live = false; rainLand(p.x, p.z, budget, t); rainAl.setX(i, 0); continue; }
+    rainA.setXYZ(i, p.x - p.vx * .08, p.y - p.vy * .08, p.z - p.vz * .08);   // tail, higher up
+    rainB.setXYZ(i, p.x, p.y, p.z); rainAl.setX(i, A);
+  }
+  rainA.needsUpdate = rainB.needsUpdate = rainAl.needsUpdate = true;
+  splashPos.needsUpdate = splashBirth.needsUpdate = splashSize.needsUpdate = true;
+  renderer.getDrawingBufferSize(rainU.uRes.value); rainU.uWidth.value = 1.2 * renderer.getPixelRatio();
+  rainU.uInk.value.setRGB(lerp(.2, .66, night), lerp(.22, .7, night), lerp(.26, .8, night), THREE.SRGBColorSpace);
+  splashU.uTime.value = t; splashU.uPx.value = renderer.getPixelRatio(); splashU.uA.value = lerp(.75, .55, night);
+  splashU.uCol.value.setRGB(lerp(.95, .8, night), lerp(.96, .85, night), lerp(.97, .95, night), THREE.SRGBColorSpace);
+  if (Math.abs(R.level - R.sound) > .005) { R.sound = R.level; window.KOI_MUSIC?.rain?.(R.level); }
 }
 
 // Fireflies: drift slowly around the shore and pond edge, blinking: off for a few seconds then light up and fade in under 1 s
@@ -1703,12 +1892,13 @@ function updateNight(dt, t) {
   const tc = new THREE.Color(set.tint).convertLinearToSRGB(); U.uTint.value.lerp(new THREE.Vector3(tc.r, tc.g, tc.b), 1 - Math.exp(-dt * 2));
   // stone lantern: flame sways gently; in winter snow-covered, weak and flickering, sometimes nearly out
   const fl = season === 'winter' ? clamp(.55 + .3 * Math.sin(t * 7.3) * Math.sin(t * 3.1 + 1) - (Math.random() < .03 ? .45 : 0), .08, 1) : .9 + .06 * Math.sin(t * 9) + .04 * Math.sin(t * 23.7);
-  N.lampI = lerp(N.lampI, fl * set.lamp, season === 'winter' ? .25 : .15);
+  const rk = smooth01(RAIN.k), gutter = clamp(.5 + .3 * Math.sin(t * 6.1) * Math.sin(t * 2.7 + 2) - (Math.random() < .04 ? .35 : 0), .1, 1);   // rain: low, guttering
+  N.lampI = lerp(N.lampI, lerp(fl, gutter, rk) * set.lamp * (1 - .4 * rk), season === 'winter' || rk > .3 ? .25 : .15);
   U.uLamp.value = N.lampI;
   lampFlame.material.opacity = k * N.lampI; lampHalo.material.opacity = k * N.lampI * .45;
   lampFlame.scale.setScalar(.85 + .15 * N.lampI);
   // fireflies
-  const want = N.on ? set.ff : 0, alive = N.ff.filter(f => !f.dying);
+  const want = N.on && !RAIN.on ? set.ff : 0, alive = N.ff.filter(f => !f.dying);
   if (alive.length < want && Math.random() < dt * 4) N.ff.push(new Firefly());
   if (alive.length > want) alive[0].dying = true;
   for (let i = N.ff.length - 1; i >= 0; i--) { const f = N.ff[i]; f.update(dt, t, k); if (f.dying && f.fade <= 0) { f.dispose(); N.ff.splice(i, 1); } }
@@ -1960,6 +2150,7 @@ class Dragonfly extends Insect {
   }
   // Behavior: dart straight -> stop and hover -> sharp turn; perch on lotus leaves/rocks; dip down to touch the water.
   next() {
+    if (RAIN.on) { this.dartTo(perchPoint()); return; }                     // rain: settle on a leaf or the bank and wait
     const r = Math.random();
     if (r < .55) this.dartTo(hoverPoint());
     else if (r < .82) this.dartTo(perchPoint());
@@ -1987,6 +2178,7 @@ class Dragonfly extends Insect {
       if (Math.random() < dt * .8) this.hT = this.h + rnd(-1.2, 1.2);          // startled heading change in place
       if (this.T < 0) this.next();
     } else if (this.state === 'perch') {
+      if (RAIN.on && this.T < 1) this.T = 1;
       if (this.perch.d) { if (this.perch.d.dying) this.T = -1; this.x = this.perch.d.x; this.z = this.perch.d.z; }
       this.y = this.perch.y;
       if (Math.random() < dt * .3) this.hT = this.h + rnd(-.5, .5);
@@ -2067,7 +2259,8 @@ class Butterfly extends Insect {
           if (dd < 2) { this.vx *= Math.exp(-dt * 3); this.vz *= Math.exp(-dt * 3); }
           if (dd < .55 && Math.abs(this.y - p.y) < .9) { this.state = 'land'; this.T = rnd(3, 8); this.vx = this.vz = this.vy = 0; }
         }
-      } else if (this.T < 0) { this.target = flowerTarget(); this.state = this.target ? 'approach' : 'fly'; this.T = this.target ? 10 : rnd(5, 10); }
+      } else if (RAIN.on) { this.target = shelterTarget(); if (this.target) { this.state = 'approach'; this.T = 20; } }   // rain: find shelter under the leaves
+      else if (this.T < 0) { this.target = flowerTarget(); this.state = this.target ? 'approach' : 'fly'; this.T = this.target ? 10 : rnd(5, 10); }
       // gravity + drag
       this.vy -= 2.6 * dt;
       const kd = Math.exp(-dt * 2.1); this.vx *= kd; this.vz *= kd; this.vy *= Math.exp(-dt * 1.4);
@@ -2083,7 +2276,8 @@ class Butterfly extends Insect {
     } else {
       const p = this.target.pos(); this.x = p.x; this.z = p.z; this.y = p.y + .12;
       // perched: wings closed upright, opened to bask only occasionally
-      this.ph += dt * .8; elev = 1.2 + .45 * Math.sin(this.ph) + (Math.sin(t * .37 + this.seedA) > .7 ? -.7 : 0);
+      this.ph += dt * .8; elev = RAIN.on ? 1.4 : 1.2 + .45 * Math.sin(this.ph) + (Math.sin(t * .37 + this.seedA) > .7 ? -.7 : 0);   // no basking in the rain
+      if (RAIN.on && this.target.ok() && this.T < 1) this.T = 1;
       if (this.T < 0 || !this.target.ok()) { this.state = 'fly'; this.T = rnd(6, 12); this.vy = 3; this.course = this.h + rnd(-1.5, 1.5); this.beats = 4; }
       this.bank = 0;
     }
@@ -2211,15 +2405,17 @@ canvas.addEventListener('click', (e) => {
 });
 // Scene control (the ink-brush corner panel in index.html): pin a season and/or day/night; whatever is left
 // unpinned keeps cycling -- one day then one night per season, the next season arriving in the morning.
-const CTRL = { season: null, time: null };
+const CTRL = { season: null, time: null, rain: null };
 let autoT = 0;
 function emitState(seasonNow = seasonTarget || season) {
-  document.dispatchEvent(new CustomEvent('koi:state', { detail: { season: seasonNow, night: NIGHT.on, pinSeason: CTRL.season, pinTime: CTRL.time } }));
+  document.dispatchEvent(new CustomEvent('koi:state', { detail: { season: seasonNow, night: NIGHT.on, pinSeason: CTRL.season, pinTime: CTRL.time, rain: RAIN.on, pinRain: CTRL.rain } }));
 }
 window.KOI_CTRL = {
   pinSeason(key) { CTRL.season = key || null; autoT = 0; if (key) setSeason(key); emitState(key || season); },
   pinTime(t) { CTRL.time = t || null; autoT = 0; if (t) setNight(t === 'night'); emitState(); },
-  get state() { return { season: seasonTarget || season, night: NIGHT.on, pinSeason: CTRL.season, pinTime: CTRL.time }; },
+  // pinned: rains until unpinned, then the shower passes in a few seconds
+  pinRain(on) { CTRL.rain = on || null; if (!on && RAIN.on) RAIN.left = rnd(4, 8); emitState(); },
+  get state() { return { season: seasonTarget || season, night: NIGHT.on, pinSeason: CTRL.season, pinTime: CTRL.time, rain: RAIN.on, pinRain: CTRL.rain }; },
 };
 
 // ---------- Intro stage ----------
@@ -2257,9 +2453,8 @@ function introScript(k, dt) {
     k.x += Math.cos(k.heading) * k.cur * dt; k.z += Math.sin(k.heading) * k.cur * dt;
   } else {
     const line = g.half + k.len * 1.3;
-    k.cur = k.d < line ? Math.max(g.R * 1.3, (line - k.d) * 1.2) : g.R * 1.05;
+    k.cur = k.d < line ? Math.max(g.R * 1.5, (line - k.d) * 1.2) : g.R * 1.5;   // a lap of the circle takes ~4 s
     k.d += k.cur * dt; [k.x, k.z, k.heading] = introPath(k, k.d);
-    if (!STAGE.arrived && STAGE.koi.every(f => f.d > g.half + f.len * 1.3 + g.R * .8)) { STAGE.arrived = true; document.dispatchEvent(new Event('koi:circle')); }
   }
   k.angVel = angDiff(k.heading, h0) / Math.max(dt, 1e-4); k.turn = k.angVel;
   // on the circle the body curls into a C around the centre (yin-yang); straight while swimming in, and when leaving
@@ -2317,7 +2512,11 @@ function renderStage(dt) {
   renderer.render(paperPass.s, qCam);
   renderer.render(introScene, camera);
 }
-window.KOI_STAGE = { exit() { if (STAGE.phase !== 'exit') { STAGE.phase = 'exit'; STAGE.reveal = 0; } } };
+window.KOI_STAGE = {
+  exit() { if (STAGE.phase !== 'exit') { STAGE.phase = 'exit'; STAGE.reveal = 0; } },
+  // share of their first lap of the circle both koi have swum (0..1): src/intro.js brushes the ensō in with it
+  get lap() { const g = STAGE.geo; return g && STAGE.koi.length ? clamp(Math.min(...STAGE.koi.map(k => (k.d - g.half - k.len * 1.3) / (TAU * g.R))), 0, 1) : 0; },
+};
 
 // ---------- Loop ----------
 await setSeason('spring');
@@ -2369,8 +2568,8 @@ renderer.setAnimationLoop((ts) => {
     const k = slotSway(s, t, gust, 2.4), [bx, bz] = d2w(s.dx, s.dy, TREE_Y);
     s.x = bx + wx * k; s.z = bz + wz * k;
     if (s.state === 'on') {
-      if (L.fade > 0 && Math.random() < dt * (s.key === 'spring' ? .02 : .013) * (.12 + gust * gust * 1.8)) detach(s);
-      else if (s.key === 'spring' && L.fade > 0 && Math.random() < dt * .012 * gust) spawnFall(sprites.fall[Math.floor(Math.random() * sprites.fall.length)], rnd(.5, .75), s.x, TREE_Y, s.z, 'petal');
+      if (L.fade > 0 && Math.random() < dt * (s.key === 'spring' ? .02 : .013) * (.12 + gust * gust * 1.8 + RAIN.level * 1.2)) detach(s);
+      else if (s.key === 'spring' && L.fade > 0 && Math.random() < dt * .012 * (gust + RAIN.level)) spawnFall(sprites.fall[Math.floor(Math.random() * sprites.fall.length)], rnd(.5, .75), s.x, TREE_Y, s.z, 'petal');
     } else if (s.state === 'gone') { if ((s.timer -= dt) < 0) { s.state = 'grow'; s.grow = 0; } }
     else if ((s.grow += dt / 4) >= 1) { s.grow = 1; s.state = 'on'; }
     const g = s.state === 'gone' ? 0 : s.state === 'grow' ? s.grow * s.grow * (3 - 2 * s.grow) : 1;
@@ -2446,7 +2645,12 @@ renderer.setAnimationLoop((ts) => {
       }
       d.x += d.vx * dt; d.z += d.vz * dt; d.m.rotation.z += d.spin * dt * (d.big ? .2 : 1);
       const [dx, dy] = w2d(d.x, d.z, FLOAT_Y), e = pondE(dx, dy);
-      if (e > .93) { const [cx, cz] = d2w(POND.cx, POND.cy, FLOAT_Y), l = Math.hypot(cx - d.x, cz - d.z); d.vx += (cx - d.x) / l * dt * 2; d.vz += (cz - d.z) / l * dt * 2; }
+      if (e > .93) {
+        const [cx, cz] = d2w(POND.cx, POND.cy, FLOAT_Y), l = Math.hypot(cx - d.x, cz - d.z), ux = (cx - d.x) / l, uz = (cz - d.z) / l;
+        d.vx += ux * dt * 2; d.vz += uz * dt * 2;
+        // the waterline holds: no drifting (or being pushed) up onto the bank
+        if (e > .97) { const vin = d.vx * ux + d.vz * uz; if (vin < 0) { d.vx -= ux * vin; d.vz -= uz * vin; } d.x = cx + (d.x - cx) * .97 / e; d.z = cz + (d.z - cz) * .97 / e; }
+      }
       d.y = FLOAT_Y + Math.sin(t * 2 + d.x) * .02;
       if (!d.dying) d.a = Math.min(1, d.a + dt);
       d.life -= dt;
@@ -2454,7 +2658,7 @@ renderer.setAnimationLoop((ts) => {
         if (d.life < 2) mat.color.setScalar(lerp(.82, 1, clamp(d.life / 2, 0, 1)));   // soaking: gradually darken before sinking
         if (d.life < 0) {
           // move to the underwater scene: seen through the surface (refraction, ripples), occluded by the fish body above
-          overScene.remove(d.m); waterScene.add(d.m); mat.depthTest = true;
+          overScene.remove(d.m); waterScene.add(d.m); mat.depthTest = true; holdAgainstStir(mat);
           d.state = 'sink'; d.vy = -{ petal: .22, bloom: .28, leaf: .32 }[d.kind] * rnd(.8, 1.2); d.phi = 0; d.y0 = d.y;
           const [u, v] = d2uv(...w2d(d.x, d.z, FLOAT_Y)); splash(u, v, .004, .05);
         }
@@ -2499,13 +2703,16 @@ renderer.setAnimationLoop((ts) => {
   RIPPLE.length = 0; prevUV.copy(ptrUV);
 
   // Underwater -> RT, through the water surface shader to the screen, then the above-water layers
-  renderer.setRenderTarget(sceneRT); renderer.setClearColor(new THREE.Color(S.paper), 1); renderer.clear(); renderer.render(waterScene, camera);
   comp.u.uScene.value = sceneRT.texture; comp.u.uStir.value = stirBuf.read.texture; comp.u.uWave.value = waveBuf.read.texture;
+  renderer.setRenderTarget(sceneRT); renderer.setClearColor(new THREE.Color(S.paper), 1); renderer.clear(); renderer.render(waterScene, camera);
   comp.u.uTime.value = t; comp.u.uGust.value = gust; comp.u.uWind.value.set(wx, -wz);
   renderer.setRenderTarget(null); renderer.clear(); renderer.render(comp.s, qCam);
   renderer.render(overScene, camera);
+  updateRain(dt, t, wx, wz, gust);
+  if (RAIN.k > 0) renderer.render(greyScene, qCam);
   updateNight(dt, t);
   if (NIGHT.k > 0) renderNight(t, gust, wind);
+  if (RAIN.k > 0) renderer.render(rainScene, camera);
   if (STAGE.on) renderStage(dt);
 });
 window.__pond = { camera, fish, drifters, setSeason, layers, slots, insects, foods, tossFood, get busy() { return busy; }, get season() { return season; } };

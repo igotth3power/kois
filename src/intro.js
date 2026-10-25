@@ -1,6 +1,6 @@
-// Intro / preloader overlay. While the pond loads: washi paper, the title, and an ensō brushed in with the loading
-// progress. When the pond is ready, src/pond.js takes over the paper and two 3D koi swim in and circle inside the ensō
-// (KOI_STAGE). A click inside the circle -- the user gesture that unlocks the music -- sends the koi off, ink ripples
+// Intro / preloader overlay. While the pond loads: washi paper and the title. When the pond is ready, src/pond.js takes
+// over the paper and two 3D koi swim in and circle (KOI_STAGE); the ensō is brushed in around them as they swim their
+// first lap, closing as they complete it. A click inside the circle -- the user gesture that unlocks the music -- sends the koi off, ink ripples
 // spread from the click and the pond dissolves the paper; this overlay removes itself when the stage is done.
 
 const DPR = Math.min(2, window.devicePixelRatio || 1);
@@ -10,43 +10,72 @@ const ease = t => t < .5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2;
 const hash = n => { const s = Math.sin(n * 127.1) * 43758.5453; return s - Math.floor(s); };
 const noise1 = x => { const i = Math.floor(x), f = x - i, u = f * f * (3 - 2 * f); return lerp(hash(i), hash(i + 1), u); };
 
-// ---- the ensō: one brush stroke drawn as a filled shape -- heavy where the brush lands, thinning out, the last third
-// breaking into dry-brush streaks; ink edges displaced like the pond's painted layers, a faint wash bleeding around it ----
+// ---- the ensō: one brush stroke, painted bristle by bristle onto a canvas and shown inside the SVG, where the loading
+// mask brushes it in. The brush lands pressed and ragged at lower left, runs full and dark up the left side, thins
+// over the top while its inner bristles run dry first and split into streaks, and ends in a few dry threads ----
+const smooth = (e0, e1, x) => { const t = Math.min(1, Math.max(0, (x - e0) / (e1 - e0))); return t * t * (3 - 2 * t); };
+const ENSO_A0 = Math.PI * .66, ENSO_SPAN = TAU * .985;   // starts at lower left, goes up the left side (clockwise)
+const ensoAt = u => { const a = ENSO_A0 + ENSO_SPAN * u, r = 84 * (1 + .016 * Math.sin(u * 6.3 + 1.1) - .025 * u); return [100 + Math.cos(a) * r, 100 + Math.sin(a) * r, a]; };
+const ensoWidth = u => 22 * (1 - .7 * Math.pow(smooth(.22, 1, u), .8)) * (.9 + .2 * noise1(u * 9 + 2));
+
+function ensoBitmap(size) {
+  const c = document.createElement('canvas'); c.width = c.height = size;
+  const g = c.getContext('2d'); g.scale(size / 200, size / 200);
+  g.lineCap = g.lineJoin = 'round'; g.strokeStyle = '#141311';
+  let seed = 7; const rnd = () => hash(seed++ * 1.37);
+  const B = 120, N = 520;
+  for (let b = 0; b < B + 16; b++) {
+    // the last 16 are short, heavy strokes just past the brush edges: the lumpy pool of ink where the brush landed
+    const land = b >= B, o = land ? (rnd() < .5 ? -1 : 1) * (.9 + rnd() * .3) : (b + rnd()) / B * 2 - 1;   // -1 inner edge, +1 outer
+    const inner = Math.min(1, Math.max(0, (1 - o) / 2));
+    const thick = land ? 3 + rnd() * 3 : .8 + rnd() * .8;
+    const start = land ? rnd() * .006 : rnd() * .008 + inner * rnd() * .01;           // ragged landing edge
+    const end = land ? .01 + rnd() * .035 : Math.min(1, .55 + rnd() * .5 + (1 - inner) * .15);   // where it runs out of ink
+    const freq = 12 + rnd() * 30, ph = rnd() * 100, ph2 = rnd() * 100;
+    let prev = null, run = 0;
+    const flush = () => { if (run) g.stroke(); run = 0; };
+    for (let i = 0; i <= N; i++) {
+      const u = i / N;
+      const edge = Math.pow(Math.abs(o), 6), dry = Math.min(1.2, smooth(.12, 1, u) * (.4 + .9 * inner) + .22 * edge);   // inner bristles dry out first, the edges break up
+      if (u < start || u > end || noise1(u * freq + ph) < dry * .85 - .08) { flush(); prev = null; continue; }
+      const w = ensoWidth(u), [x, y, a] = ensoAt(u);
+      const off = (o * (1 + .25 * dry) + (noise1(u * (3 + 9 * edge) + ph2) - .5) * (.16 + .22 * edge)) * w / 2;   // the brush splays as it dries
+      const p = [x + Math.cos(a) * off, y + Math.sin(a) * off];
+      if (!run) {
+        if (!prev) { prev = p; continue; }
+        g.lineWidth = Math.max(.3, w / B * 3 * thick * (1 - .55 * dry) * Math.min(1, (end - u) / .05 + .3));
+        g.beginPath(); g.moveTo(prev[0], prev[1]);
+      }
+      g.lineTo(p[0], p[1]); prev = p;
+      if (++run >= 6) flush();
+    }
+    flush();
+  }
+  // flyaway hairs and flecks just off the edges
+  for (let i = 0; i < 22; i++) {
+    const u0 = .05 + rnd() * .9, len = .003 + rnd() * .01, side = rnd() < .6 ? 1 : -1, d = .3 + rnd() * 1.6;
+    g.lineWidth = .15 + rnd() * .2; g.beginPath();
+    for (let j = 0; j <= 6; j++) {
+      const u = u0 + len * j / 6, [x, y, a] = ensoAt(u), off = side * (ensoWidth(u) / 2 + d);
+      g[j ? 'lineTo' : 'moveTo'](x + Math.cos(a) * off, y + Math.sin(a) * off);
+    }
+    g.stroke();
+  }
+  return c;
+}
+
 function ensoSVG() {
-  const C = 100, Rr = 86, a0 = -Math.PI * .6, span = TAU * .92, N = 160;
-  const at = u => { const a = a0 + span * u, r = Rr * (1 + .03 * Math.sin(u * 5.3 + .7) + .035 * u); return [C + Math.cos(a) * r, C + Math.sin(a) * r, a]; };
-  const width = u => (u < .04 ? 5 + 5 * Math.sin(u / .04 * Math.PI / 2) : 10 * (1 - .72 * Math.pow((u - .04) / .96, 1.1))) * (.85 + .3 * noise1(u * 14 + 3));
-  const shape = (u0, u1) => {
-    const L = [], Rt = [];
-    for (let i = 0; i <= N; i++) { const u = lerp(u0, u1, i / N), [x, y, a] = at(u), w = width(u) / 2; L.push([x + Math.cos(a) * w, y + Math.sin(a) * w]); Rt.push([x - Math.cos(a) * w, y - Math.sin(a) * w]); }
-    return 'M' + L.concat(Rt.reverse()).map(p => p[0].toFixed(2) + ',' + p[1].toFixed(2)).join('L') + 'Z';
-  };
-  const spine = 'M' + Array.from({ length: N + 1 }, (_, i) => at(i / N)).map(p => p[0].toFixed(2) + ',' + p[1].toFixed(2)).join('L');
-  const [bx, by] = at(0);
+  const spine = 'M' + Array.from({ length: 161 }, (_, i) => ensoAt(i / 160)).map(p => p[0].toFixed(2) + ',' + p[1].toFixed(2)).join('L');
   return `<svg class="enso" viewBox="0 0 200 200">
     <defs>
-      <filter id="inkEdge" x="-10%" y="-10%" width="120%" height="120%">
-        <feTurbulence type="fractalNoise" baseFrequency=".09" numOctaves="3" seed="4" result="t"/>
-        <feDisplacementMap in="SourceGraphic" in2="t" scale="3.2" xChannelSelector="R" yChannelSelector="G"/>
-      </filter>
-      <filter id="inkDry" x="-10%" y="-10%" width="120%" height="120%">
-        <feTurbulence type="fractalNoise" baseFrequency=".9 .06" numOctaves="2" seed="11" result="t"/>
-        <feColorMatrix in="t" type="matrix" values="0 0 0 0 0  0 0 0 0 0  0 0 0 0 0  4.4 0 0 0 -1.7" result="m"/>
-        <feComposite in="SourceGraphic" in2="m" operator="in" result="c"/>
-        <feTurbulence type="fractalNoise" baseFrequency=".09" numOctaves="2" seed="5" result="t2"/>
-        <feDisplacementMap in="c" in2="t2" scale="3" xChannelSelector="R" yChannelSelector="G"/>
-      </filter>
-      <filter id="inkWash" x="-20%" y="-20%" width="140%" height="140%"><feGaussianBlur stdDeviation="3.2"/></filter>
-      <radialGradient id="inkBlot"><stop offset="0" stop-color="#151413" stop-opacity=".55"/><stop offset="1" stop-color="#151413" stop-opacity="0"/></radialGradient>
+      <filter id="inkWash" x="-20%" y="-20%" width="140%" height="140%"><feGaussianBlur stdDeviation="2.6"/></filter>
       <mask id="ensoReveal" maskUnits="userSpaceOnUse" x="-20" y="-20" width="240" height="240">
-        <path class="reveal" d="${spine}" fill="none" stroke="#fff" stroke-width="34" stroke-linecap="round" pathLength="1" stroke-dasharray="1 1" stroke-dashoffset="1"/>
+        <path class="reveal" d="${spine}" fill="none" stroke="#fff" stroke-width="40" stroke-linecap="round" pathLength="1" stroke-dasharray="1 1" stroke-dashoffset="1"/>
       </mask>
     </defs>
     <g mask="url(#ensoReveal)">
-      <path d="${shape(0, 1)}" fill="#1a1917" opacity=".13" filter="url(#inkWash)" transform="translate(1.2,1.6)"/>
-      <path d="${shape(0, .7)}" fill="#171614" opacity=".9" filter="url(#inkEdge)"/>
-      <path d="${shape(.58, 1)}" fill="#171614" opacity=".88" filter="url(#inkDry)"/>
-      <circle cx="${bx.toFixed(1)}" cy="${by.toFixed(1)}" r="9" fill="url(#inkBlot)"/>
+      <image class="enso-ink" width="200" height="200" opacity=".14" filter="url(#inkWash)" transform="translate(1.2,1.6)"/>
+      <image class="enso-ink" width="200" height="200" opacity=".93"/>
     </g>
   </svg>`;
 }
@@ -75,6 +104,7 @@ document.head.appendChild(css);
 document.body.appendChild(root);
 requestAnimationFrame(() => root.classList.add('shown'));
 const reveal = root.querySelector('.reveal');
+ensoBitmap(1200).toBlob(b => { const url = URL.createObjectURL(b); root.querySelectorAll('.enso-ink').forEach(im => im.setAttribute('href', url)); });
 
 const cvs = root.querySelector('canvas'), ctx = cvs.getContext('2d');
 let W = 0, H = 0, cx = 0, cy = 0, R = 0;
@@ -122,10 +152,9 @@ function drawRipples(dt) {
 }
 
 // ---- state ----
-let state = 'loading', last = performance.now(), progress = 0, arrived = false, paperA = 1;
+let state = 'loading', last = performance.now(), paperA = 1;
 let ready = !!window.KOI_READY;
 document.addEventListener('koi:ready', () => { ready = true; });
-document.addEventListener('koi:circle', () => { arrived = true; });
 document.addEventListener('koi:stage-done', () => { root.remove(); css.remove(); document.body.classList.remove('intro'); });
 document.body.classList.add('intro');
 const inside = e => Math.hypot(e.clientX - cx, e.clientY - cy) < R * 1.45;
@@ -141,11 +170,11 @@ root.addEventListener('pointerdown', e => {
 function frame(now) {
   if (!root.isConnected) return;
   const dt = Math.min(.05, (now - last) / 1000); last = now;
-  // loading progress: creeps towards 90% while loading, completes once the pond is ready
-  progress = ready ? Math.min(1, progress + dt * .7) : Math.min(.9, progress + dt * .11 * (1 - progress));
-  reveal.setAttribute('stroke-dashoffset', (1 - ease(progress)).toFixed(4));
-  // the seal invites a click once both koi have swum into the circle
-  if (state === 'loading' && arrived && progress >= 1) { state = 'ready'; root.classList.add('ready'); }
+  // the ensō keeps pace with the koi: brushed in over their first lap of the circle
+  const lap = window.KOI_STAGE?.lap || 0;
+  reveal.setAttribute('stroke-dashoffset', (1 - lap).toFixed(4));
+  // the seal invites a click once the ensō has closed
+  if (state === 'loading' && lap >= 1) { state = 'ready'; root.classList.add('ready'); }
   // once the pond draws the paper (and the koi), this sheet fades away
   if (ready) paperA = Math.max(0, paperA - dt / .8);
   ctx.setTransform(DPR, 0, 0, DPR, 0, 0);
