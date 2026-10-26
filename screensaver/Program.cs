@@ -1,17 +1,17 @@
-// Koi pond screensaver: shows the Vite dev page full screen in WebView2 (Edge's engine, so WebGL works) and quits on any
+// Koi pond screensaver: shows the pond deployed on Vercel full screen in WebView2 (Edge's engine, so WebGL works) and quits on any
 // key, click, scroll or real mouse move. With "On resume, display logon screen" ticked, Windows asks for the password
 // afterwards, so the pond plays while the PC stays locked. Other monitors stay black.
 //
 // Build on Windows (.NET 8 SDK):  dotnet publish -c Release
 //   -> bin\Release\net8.0-windows\win-x64\publish\KoiScreensaver.scr  (right-click -> Install)
-// The dev server must be running (npm run dev -- --port 5173); until it answers, a "waiting" page retries every 5 s.
+// Needs the internet; while the site can't be reached, a "waiting" page retries every 5 s.
 
 using Microsoft.Web.WebView2.Core;
 using Microsoft.Web.WebView2.WinForms;
 
 static class Program
 {
-    public const string Url = "http://localhost:5173/?screensaver";
+    public const string Url = "https://kois-three.vercel.app/?screensaver";
 
     [STAThread]
     static void Main(string[] args)
@@ -60,7 +60,7 @@ sealed class SaverForm : Form
     const string Waiting = $"""
         <!doctype html><meta http-equiv="refresh" content="5;url={Program.Url}">
         <body style="margin:0;height:100vh;display:grid;place-items:center;background:#000;color:#555;font:16px sans-serif">
-        Waiting for the dev server at {Program.Url}
+        Waiting for {Program.Url}
         """;
 
     public SaverForm(Screen screen)

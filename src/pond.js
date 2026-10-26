@@ -383,10 +383,10 @@ const pondE = (dx, dy) => { const nx = (dx - POND.cx) / POND.rx, ny = (dy - POND
 
 // ---------- Seasons ----------
 const SEASONS = {
-  spring: { name: '春', en: 'Spring', poem: '春池游鯉', sub: '花落水自流', paper: '#efe6d3', moss: '#3d5530', grass: '#4d6a38', water: '#1d2a28', sun: '#fff3ea', sunI: 2.1, hemi: .95, fall: 'petal', rate: 7, lotus: 3, flowers: 0 },
-  summer: { name: '夏', en: 'Summer', poem: '蓮池涼風', sub: '蜻蛉點水', paper: '#ece4cc', moss: '#2f4a24', grass: '#3d5a2c', water: '#16261f', sun: '#fff8e8', sunI: 2.4, hemi: 1.0, fall: null, rate: 0, lotus: 9, flowers: 4 },
-  autumn: { name: '秋', en: 'Autumn', poem: '紅葉浮水', sub: '風過池心', paper: '#ede0c6', moss: '#4a4426', grass: '#6b5a2a', water: '#2a2620', sun: '#ffe9cc', sunI: 2.1, hemi: .9, fall: 'leaf', rate: 3.2, lotus: 4, flowers: 0 },
-  winter: { name: '冬', en: 'Winter', poem: '雪池靜鯉', sub: '寒梅一點紅', paper: '#ebe9e3', moss: '#2a2c2a', grass: '#7a7060', water: '#1e2428', sun: '#eef3ff', sunI: 1.8, hemi: 1.05, fall: 'snow', rate: 30, lotus: 0, flowers: 0 },
+  spring: { name: '春', en: 'Spring', paper: '#efe6d3', moss: '#3d5530', grass: '#4d6a38', water: '#1d2a28', sun: '#fff3ea', sunI: 2.1, hemi: .95, fall: 'petal', rate: 7, lotus: 3, flowers: 0 },
+  summer: { name: '夏', en: 'Summer', paper: '#ece4cc', moss: '#2f4a24', grass: '#3d5a2c', water: '#16261f', sun: '#fff8e8', sunI: 2.4, hemi: 1.0, fall: null, rate: 0, lotus: 9, flowers: 4 },
+  autumn: { name: '秋', en: 'Autumn', paper: '#ede0c6', moss: '#4a4426', grass: '#6b5a2a', water: '#2a2620', sun: '#ffe9cc', sunI: 2.1, hemi: .9, fall: 'leaf', rate: 3.2, lotus: 4, flowers: 0 },
+  winter: { name: '冬', en: 'Winter', paper: '#ebe9e3', moss: '#2a2c2a', grass: '#7a7060', water: '#1e2428', sun: '#eef3ff', sunI: 1.8, hemi: 1.05, fall: 'snow', rate: 30, lotus: 0, flowers: 0 },
 };
 
 // ---------- SVG -> canvas ----------
@@ -469,8 +469,6 @@ function shoreArt(S, key) {
   Ink.stepStones(s, [[150, 470, 13], [118, 500, 12], [92, 530, 13], [70, 556, 12]], 61);
   Ink.lantern(s, 70, 430, 1.25);
   if (key === 'winter') E(s, 'path', { d: blob(70, 412, 20, 8, 970, .2, 8), fill: '#fdfcf8', opacity: .95, filter: 'url(#brushF)' });
-  Ink.seal(s, 46, 270, 24, S.name);
-  Ink.seal(s, 900, 520, 18, '鯉', '#a83226');
   return s;
 }
 
@@ -784,17 +782,6 @@ async function spriteSet(key) {
   return out;
 }
 
-function drawCalligraphy(c, S) {
-  const x = c.getContext('2d'), k = c.width / DW;
-  x.save(); x.scale(k, k);
-  x.fillStyle = 'rgba(20,20,20,.9)'; x.textAlign = 'center'; x.textBaseline = 'top';
-  x.font = '34px "Yuji Syuku", "Noto Serif JP", serif';
-  [...S.poem].forEach((ch, i) => x.fillText(ch, 58, 34 + i * 42));
-  x.fillStyle = 'rgba(20,20,20,.65)'; x.font = '18px "Yuji Syuku", "Noto Serif JP", serif';
-  [...S.sub].forEach((ch, i) => x.fillText(ch, 98, 44 + i * 24));
-  x.restore();
-}
-
 // ======================================================================
 // Scene: underwater layer (bottom + fish) renders into an RT, the water surface layer is processed by a wave shader,
 // then the above-water layers (shore, floating objects, tree, falling objects) are drawn on top.
@@ -988,11 +975,28 @@ const PATTERN_GLSL = /* glsl */ `
     vec3 finTone = mix(mix(vec3(.8, .78, .72), vec3(.2, .2, .21), dark), c, .15);
     float rays = .88 + .12 * sin((p.x + p.y * .35) * 46.0);
     c = mix(c, c * .45 + finTone * .05, dor);                          // dorsal fin line darker than the body
+    #if KOI_VARIANT == 13 || KOI_VARIANT == 14
+      // random pigment streaks running out along the tail rays (polar around the peduncle), own to each fish:
+      // ink on the white koi, paper-white on the black one
+      float tL = max(0.0, -p.x - 2.4), tY = p.y + .2, tR = length(vec2(tL, tY));
+      float streak = smoothstep(.52, .66, fbm(vec3(atan(tY, tL + 1e-4) * 9.0, tR * 1.3, 0.0) + uSeed * 1.7)) * smoothstep(.15, .45, tR) * smoothstep(-2.3, -2.6, p.x);
+      #if KOI_VARIANT == 13
+        c = mix(c, BLK, streak * .8);
+      #else
+        c = mix(c, W * 1.05, streak * .65);
+      #endif
+    #endif
     diffuseColor.rgb = c;
-    diffuseColor.a *= 1.0 - fin * (.18 + .37 * finTip(p)) ;            // koi fins nearly transparent, edge clearer than the base
+    #if KOI_VARIANT == 13 || KOI_VARIANT == 14
+      // the intro koi swim over bare paper, where clear fins vanish: show the fins as they look in the pond, over a film of water
+      diffuseColor.rgb = mix(INTRO_WATER, c, 1.0 - fin * (.18 + .37 * finTip(p)));
+    #else
+      diffuseColor.a *= 1.0 - fin * (.18 + .37 * finTip(p)) ;          // koi fins nearly transparent, edge clearer than the base
+    #endif
   }
 `;
 const PATTERN_PARS = /* glsl */ `
+  const vec3 INTRO_WATER = vec3(.3, .34, .36);                        // pond water seen through the intro koi's fins (linear); #949ea3 in sRGB
   varying vec3 vKoiPos;
   uniform float uSeed, uRedBias;
   float h3(vec3 p) { p = fract(p * .3183099 + .1); p *= 17.0; return fract(p.x * p.y * p.z * (p.x + p.y + p.z)); }
@@ -1028,11 +1032,11 @@ const PEC_COL = {
   light: ['#f1ddd2', '#f4efe6'], motoguro: ['#18181a', '#e6e0d6'], black: ['#141416', '#3c3c3e'], orange: ['#d8742f', '#f2bf92'],
   tea: ['#8a6040', '#cfa985'], gold: ['#d9a640', '#f3d993'], grey: ['#66717c', '#cbd0d4'],
 };
-const PEC_OF_VARIANT = { 0: 'light', 1: 'light', 9: 'light', 7: 'light', 2: 'motoguro', 11: 'motoguro', 10: 'motoguro', 8: 'black', 3: 'orange', 4: 'orange', 5: 'tea', 6: 'gold', 12: 'grey' };
+const PEC_OF_VARIANT = { 0: 'light', 1: 'light', 9: 'light', 7: 'light', 2: 'motoguro', 11: 'motoguro', 10: 'motoguro', 8: 'black', 14: 'black', 3: 'orange', 4: 'orange', 5: 'tea', 6: 'gold', 12: 'grey' };
 const pecTex = {};
 // faint pattern spots on the fin per variety: vermilion, ink black, brown
 // ink-wash tones: muted vermilion, brown-black ink, blue-grey, brown, ochre
-const PEC_SPOTS = { 0: ['#b8402a'], 1: ['#b8402a', '#2a2622'], 2: ['#b8402a', '#2a2622'], 3: ['#6a8296'], 4: ['#4a5f78'], 5: ['#6a4a30'], 6: ['#c09040'], 10: ['#2a2622'], 11: ['#b8402a'], 12: ['#7a5236'] };
+const PEC_SPOTS = { 0: ['#b8402a'], 1: ['#b8402a', '#2a2622'], 2: ['#b8402a', '#2a2622'], 3: ['#6a8296'], 4: ['#4a5f78'], 5: ['#6a4a30'], 6: ['#c09040'], 10: ['#2a2622'], 11: ['#b8402a'], 12: ['#7a5236'], 13: ['#1d1d1d'], 14: ['#f2ece0'] };
 function pecTexture(variant, seed = 1) {
   const key = PEC_OF_VARIANT[variant] || 'light';
   const [rootC, baseC] = PEC_COL[key];
@@ -1082,6 +1086,8 @@ function pecTexture(variant, seed = 1) {
       if (key === 'motoguro') { const q = at(t, .4); x.strokeStyle = 'rgba(15,15,15,.75)'; x.lineWidth = 4; x.beginPath(); x.moveTo(b[0], b[1]); x.lineTo(q[0], q[1]); x.stroke(); }
     }
     x.restore();
+    // the intro koi swim over bare paper: lay a film of pond water under the clear fin (INTRO_WATER), as the pond shows it
+    if (variant === 13 || variant === 14) { x.globalCompositeOperation = 'destination-over'; path(); x.fillStyle = 'rgba(148,158,163,.95)'; x.fill(); x.globalCompositeOperation = 'source-over'; }
   });
   const t = new THREE.CanvasTexture(c); t.colorSpace = THREE.SRGBColorSpace; t.anisotropy = 8;
   return t;
@@ -1391,7 +1397,7 @@ const comp = pass(/* glsl */ `
     vec2 wd = normalize(uWind + 1e-4), p = vUv * vec2(uAspect, 1.0);
     vec2 q = vec2(dot(p, wd), dot(p, vec2(-wd.y, wd.x)));
     float wn = noise(vec2(q.x * 46.0 - uTime * 3.0, q.y * 9.0)) + .5 * noise(vec2(q.x * 90.0 - uTime * 5.0, q.y * 22.0));
-    vec2 uv = vUv - disp - N.xy * .018 - nD * .003 + wd * (wn - .75) * .0026 * uGust;
+    vec2 uv = vUv - disp - N.xy * .018 - nD * .006 + wd * (wn - .75) * .0026 * uGust;
     vec3 col = texture(uScene, uv).rgb;
     // ripples drawn like ink strokes: wave troughs ink-dark, crests paper-light
     float lap = hL + hR + hD + hU - 4.0 * hC;
@@ -1399,8 +1405,8 @@ const comp = pass(/* glsl */ `
     col = mix(col, uPaper * 1.04, smoothstep(.003, .03, -lap) * .4);
     // rain rings lit from the upper left: the side of each ring facing the light catches the pale sky, the far side darkens
     float sD = clamp(dot(nD, vec2(-.6, .8)), -1.0, 1.0);
-    col = mix(col, col * .55, max(-sD, 0.0) * .7);
-    col = mix(col, uPaper * 1.08, max(sD, 0.0) * .55);
+    col = mix(col, col * .45, min(max(-sD, 0.0) * 1.1, 1.0));
+    col = mix(col, uPaper * 1.12, min(max(sD, 0.0) * .85, 1.0));
     float streak = smoothstep(.6, .85, noise(vec2(q.x * 5.0 - uTime * .5, q.y * 1.3)));
     col = mix(col, uPaper * 1.06, streak * .06 * uGust);
     // rain: the surface goes faintly blotchy -- slowly drifting darker and paler patches
@@ -1644,7 +1650,7 @@ function renderNight(t, gust, wind) {
 // pitted. Dragonflies and butterflies shelter on leaves until it passes, fireflies stay hidden; at night dark clouds
 // drift across the moon and the stone lantern burns low. A shower comes and goes on its own now and then (never in
 // winter, which has its snow) unless rain is pinned from the corner control.
-const RAIN = { on: false, k: 0, level: 0, next: rnd(40, 90), left: 0, sound: -1 };
+const RAIN = { on: false, k: 0, level: 0, next: rnd(40, 90), left: 0 };
 const greyQ = new THREE.Mesh(quadGeo, new THREE.ShaderMaterial({
   vertexShader: QV, depthTest: false, depthWrite: false, transparent: true,
   blending: THREE.CustomBlending, blendEquation: THREE.AddEquation, blendSrc: THREE.DstColorFactor, blendDst: THREE.ZeroFactor,
@@ -1696,7 +1702,7 @@ const rainMesh = new THREE.Mesh(rainGeo, new THREE.ShaderMaterial({
 }));
 rainMesh.frustumCulled = false;
 // splashes: where a drop hits a rock, a leaf or the bank, a small bright ring flicks out and a bead jumps, gone in a third
-// of a second (kind 0). On open water only a bead jumps up and falls back, with a faint crown in the first instant (kind 1)
+// of a second (kind 0). On open water a bead jumps up and falls back, with a crown flung out in the first instant (kind 1)
 const SPLASHES = 700, splashPos = new THREE.BufferAttribute(new Float32Array(SPLASHES * 3), 3).setUsage(THREE.DynamicDrawUsage);
 const splashBirth = new THREE.BufferAttribute(new Float32Array(SPLASHES).fill(-9), 1).setUsage(THREE.DynamicDrawUsage);
 const splashSize = new THREE.BufferAttribute(new Float32Array(SPLASHES), 1).setUsage(THREE.DynamicDrawUsage);
@@ -1712,7 +1718,7 @@ const splashPts = new THREE.Points(splashGeo, new THREE.ShaderMaterial({
       vKind = aKind;
       vAge = (uTime - aBirth) / (aKind > .5 ? .24 : .32);
       float jump = aKind > .5 ? sin(clamp(vAge, 0.0, 1.0) * 3.14159) : 0.0;   // the bead rises toward the camera and drops back
-      gl_Position = projectionMatrix * viewMatrix * vec4(position + vec3(0.0, jump * .35, 0.0), 1.0);
+      gl_Position = projectionMatrix * viewMatrix * vec4(position + vec3(0.0, jump * .6, 0.0), 1.0);
       gl_PointSize = vAge < 0.0 || vAge > 1.0 ? 0.0 : aSize * uPx * (1.0 + .35 * jump);
     }`,
   fragmentShader: /* glsl */ `
@@ -1721,8 +1727,8 @@ const splashPts = new THREE.Points(splashGeo, new THREE.ShaderMaterial({
       float r = length(gl_PointCoord - .5) * 2.0, e = 1.0 - vAge;
       if (vKind > .5) {
         float bead = 1.0 - smoothstep(.4, .55, r), rim = smoothstep(.15, .5, r) * bead;
-        float crown = (1.0 - smoothstep(.0, .1, abs(r - (.3 + 2.4 * vAge)))) * max(0.0, 1.0 - vAge * 4.0);
-        gl_FragColor = vec4(mix(uCol, uCol * .45, rim), (bead * (1.0 - vAge * vAge) + crown * .5) * uA);
+        float crown = (1.0 - smoothstep(.0, .12, abs(r - (.3 + 2.4 * vAge)))) * max(0.0, 1.0 - vAge * 3.0);
+        gl_FragColor = vec4(mix(uCol, uCol * .45, rim), (bead * (1.0 - vAge * vAge) + crown * .95) * uA);
       } else {
         float ring = (1.0 - smoothstep(.0, .16, abs(r - (.25 + .7 * vAge)))) * e * e;
         float bead = (1.0 - smoothstep(.0, .3, r)) * max(0.0, 1.0 - vAge * 3.0);
@@ -1743,7 +1749,7 @@ function splashAt(x, y, z, size, t, kind = 0) {
 // rings running outward that spreads into more, fainter rings as it goes. The water shader and the moon reflection read
 // its slope (DRIP_U), so the rings bend the koi and leaves below and break up the moon. Hundreds live at once, unlike the
 // wave simulation, which takes 12 sources a frame.
-const DRIPS = 900, DRIP_LIFE = 1.3, DRIP_SPEED = .028, DRIP_LAMBDA = .0055;   // speed (per s) and wavelength in screen heights
+const DRIPS = 1600, DRIP_LIFE = 1.3, DRIP_SPEED = .028, DRIP_LAMBDA = .0055;   // speed (per s) and wavelength in screen heights
 const dripGeo = new THREE.InstancedBufferGeometry();
 dripGeo.index = quadGeo.index; dripGeo.setAttribute('position', quadGeo.getAttribute('position'));
 const dripA = new THREE.InstancedBufferAttribute(new Float32Array(DRIPS * 4).fill(-99), 4).setUsage(THREE.DynamicDrawUsage);   // u, v, birth, size
@@ -1769,8 +1775,8 @@ const dripMesh = new THREE.Mesh(dripGeo, new THREE.ShaderMaterial({
       float r = length(vQ), u = vAge / LIFE, lam = LAMBDA * vS, front = SPEED * vS * vAge;
       float w = lam * (.8 + 1.8 * u), x = r - front + w * .5;
       float h = exp(-x * x / (w * w)) * cos(6.2831853 * (r - front) / lam) * pow(1.0 - u, 1.6) / sqrt(1.0 + r / lam);
-      h -= 1.4 * exp(-r * r / (lam * lam * .25)) * max(0.0, 1.0 - vAge / .12);
-      gl_FragColor = vec4(h * .7 * vS, 0.0, 0.0, 1.0);
+      h -= 2.4 * exp(-r * r / (lam * lam * .3)) * max(0.0, 1.0 - vAge / .18);
+      gl_FragColor = vec4(h * 1.25 * vS, 0.0, 0.0, 1.0);
     }`,
 }));
 dripMesh.frustumCulled = false;
@@ -1810,9 +1816,9 @@ function rainLand(x, z, budget, t) {
     if (!d.big && d.sinkable && dd < .5) d.life -= 1.2;
   }
   const [u, v] = d2uv(dx, dy);
-  if (budget.drip-- > 0) dripAt(u, v, rnd(.7, 1.3), t);
-  if (Math.random() < .45) splashAt(x, FLOAT_Y, z, rnd(5, 8), t, 1);
-  if (budget.ring-- > 0 && Math.random() < .1) splash(u, v, rnd(.005, .008), rnd(.05, .08));   // now and then a big drop stirs the wave sim too
+  if (budget.drip-- > 0) dripAt(u, v, rnd(.6, 1.5), t);
+  if (Math.random() < .7) splashAt(x, FLOAT_Y, z, rnd(8, 13), t, 1);
+  if (budget.ring-- > 0 && Math.random() < .25) splash(u, v, rnd(.006, .01), rnd(.09, .14));   // now and then a big drop stirs the wave sim too
 }
 // shelter for butterflies in the rain: under a leaf or blossom on the tree
 function shelterTarget() {
@@ -1861,7 +1867,6 @@ function updateRain(dt, t, wx, wz, gust) {
   rainU.uInk.value.setRGB(lerp(.2, .66, night), lerp(.22, .7, night), lerp(.26, .8, night), THREE.SRGBColorSpace);
   splashU.uTime.value = t; splashU.uPx.value = renderer.getPixelRatio(); splashU.uA.value = lerp(.75, .55, night);
   splashU.uCol.value.setRGB(lerp(.95, .8, night), lerp(.96, .85, night), lerp(.97, .95, night), THREE.SRGBColorSpace);
-  if (Math.abs(R.level - R.sound) > .005) { R.sound = R.level; window.KOI_MUSIC?.rain?.(R.level); }
 }
 
 // Fireflies: drift slowly around the shore and pond edge, blinking: off for a few seconds then light up and fade in under 1 s
@@ -2011,8 +2016,6 @@ async function setSeason(key) {
   emitState(key);
   const S = SEASONS[key];
   const [floorC, shoreC, treeC, sp, plants] = await Promise.all([raster(floorArt(S)), raster(shoreArt(S, key)), raster(treeArt(S, key)), spriteSet(key), buildPlants(S, key)]);
-  await document.fonts.load('34px "Yuji Syuku"').catch(() => {});
-  drawCalligraphy(shoreC, S);
   const floorM = screenPlane(FLOOR_Y, new THREE.MeshLambertMaterial({ map: canvasTex(floorC), transparent: true, opacity: 0, fog: false }));
   floorM.receiveShadow = true; floorM.renderOrder = -10; waterScene.add(floorM);
   const shoreM = screenPlane(SHORE_Y, basicLayer(canvasTex(shoreC))); shoreM.renderOrder = 20;

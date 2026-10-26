@@ -1,4 +1,4 @@
-// Intro / preloader overlay. While the pond loads: washi paper and the title. When the pond is ready, src/pond.js takes
+// Intro / preloader overlay. While the pond loads: washi paper. When the pond is ready, src/pond.js takes
 // over the paper and two 3D koi swim in and circle (KOI_STAGE); the ensō is brushed in around them as they swim their
 // first lap, closing as they complete it. A click inside the circle -- the user gesture that unlocks the music -- sends the koi off, ink ripples
 // spread from the click and the pond dissolves the paper; this overlay removes itself when the stage is done.
@@ -71,7 +71,8 @@ function ensoSVG() {
     <defs>
       <filter id="inkWash" x="-20%" y="-20%" width="140%" height="140%"><feGaussianBlur stdDeviation="2.6"/></filter>
       <mask id="ensoReveal" maskUnits="userSpaceOnUse" x="-20" y="-20" width="240" height="240">
-        <path class="reveal" d="${spine}" fill="none" stroke="#fff" stroke-width="40" stroke-linecap="round" pathLength="1" stroke-dasharray="1 1" stroke-dashoffset="1"/>
+        <path class="reveal" d="${spine}" fill="none" stroke="#fff" stroke-width="40" stroke-linecap="butt" pathLength="1" stroke-dasharray="1 1" stroke-dashoffset="1"/>
+        <circle class="reveal-head" r="0" fill="#fff"/>
       </mask>
     </defs>
     <g mask="url(#ensoReveal)">
@@ -84,7 +85,7 @@ function ensoSVG() {
 // ---- DOM ----
 const root = document.createElement('div');
 root.id = 'intro';
-root.innerHTML = `<canvas></canvas>${ensoSVG()}<div class="seal">鯉</div><div class="title"><span class="jp">墨池の鯉</span><span class="en">Ink-Wash Koi Pond</span></div>`;
+root.innerHTML = `<canvas></canvas>${ensoSVG()}<div class="seal">鯉</div>`;
 const css = document.createElement('style');
 css.textContent = `
   #intro { position: fixed; inset: 0; z-index: 20; cursor: default; user-select: none; }
@@ -94,17 +95,13 @@ css.textContent = `
     font: 28px/42px 'Yuji Syuku', 'Noto Serif JP', serif; text-align: center; transform: rotate(-6deg) scale(.3); opacity: 0;
     transition: opacity .7s, transform .7s cubic-bezier(.3, 1.6, .5, 1); pointer-events: none; box-shadow: inset 0 0 0 3px rgba(246, 238, 221, .28); }
   #intro.ready .seal { opacity: .88; transform: rotate(-6deg) scale(1); }
-  #intro .title { position: absolute; left: 0; right: 0; top: calc(50% - var(--d) / 2 - 100px); display: flex; flex-direction: column; align-items: center; gap: 6px; color: #1b1b1a; opacity: 0; transform: translateY(8px); transition: opacity 1.6s .3s, transform 1.6s .3s; pointer-events: none; }
-  #intro .jp { font: 400 clamp(30px, 4.4vw, 48px) 'Yuji Syuku', 'Noto Serif JP', serif; letter-spacing: .18em; padding-left: .18em; }
-  #intro .en { font: 500 11px 'Noto Serif JP', Georgia, serif; letter-spacing: .5em; padding-left: .5em; text-transform: uppercase; opacity: .55; }
-  #intro.shown .title { opacity: .9; transform: none; }
   #intro.ready.over { cursor: pointer; }
-  #intro.leave .seal, #intro.leave .title { opacity: 0 !important; transition: opacity .5s; }
+  #intro.leave .seal { opacity: 0 !important; transition: opacity .5s; }
   #intro.leave .enso { opacity: 0; transform: translate(-50%, -50%) rotate(-6deg) scale(1.25); }`;
 document.head.appendChild(css);
 document.body.appendChild(root);
 requestAnimationFrame(() => root.classList.add('shown'));
-const reveal = root.querySelector('.reveal');
+const reveal = root.querySelector('.reveal'), revealHead = root.querySelector('.reveal-head');
 ensoBitmap(1200).toBlob(b => { const url = URL.createObjectURL(b); root.querySelectorAll('.enso-ink').forEach(im => im.setAttribute('href', url)); });
 
 const cvs = root.querySelector('canvas'), ctx = cvs.getContext('2d');
@@ -178,6 +175,11 @@ function frame(now) {
   // the ensō keeps pace with the koi: brushed in over their first lap of the circle
   const lap = window.KOI_STAGE?.lap || 0;
   reveal.setAttribute('stroke-dashoffset', (1 - lap).toFixed(4));
+  // a round head on the brushing front; the tail of the mask is cut square, since the dry threads that end the stroke lie
+  // just behind where it starts. The head waits until the front is well clear of them, then grows in
+  const [hx, hy] = ensoAt(Math.min(lap, 1));
+  revealHead.setAttribute('cx', hx.toFixed(2)); revealHead.setAttribute('cy', hy.toFixed(2));
+  revealHead.setAttribute('r', (20 * smooth(.05, .09, lap)).toFixed(2));
   // the seal invites a click once the ensō has closed
   if (state === 'loading' && lap >= 1) { state = 'ready'; root.classList.add('ready'); }
   if (AUTO && state === 'ready') enter(cx, cy);
