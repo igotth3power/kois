@@ -2,6 +2,7 @@
 // over the paper and two 3D koi swim in and circle (KOI_STAGE); the ensō is brushed in around them as they swim their
 // first lap, closing as they complete it. A click inside the circle -- the user gesture that unlocks the music -- sends the koi off, ink ripples
 // spread from the click and the pond dissolves the paper; this overlay removes itself when the stage is done.
+// With ?screensaver in the URL (screensaver/) there is no one to click: the koi set off by themselves once the ensō closes.
 
 const DPR = Math.min(2, window.devicePixelRatio || 1);
 const TAU = Math.PI * 2;
@@ -157,14 +158,18 @@ let ready = !!window.KOI_READY;
 document.addEventListener('koi:ready', () => { ready = true; });
 document.addEventListener('koi:stage-done', () => { root.remove(); css.remove(); document.body.classList.remove('intro'); });
 document.body.classList.add('intro');
+const AUTO = new URLSearchParams(location.search).has('screensaver');
 const inside = e => Math.hypot(e.clientX - cx, e.clientY - cy) < R * 1.45;
+function enter(x, y) {
+  state = 'leave'; root.classList.add('leave');
+  for (let i = 0; i < 4; i++) ripples.push({ x, y, t: -i * .2, life: 1.8, r0: 6, r1: R * (1.4 + i * .5), seed: i * 9.1 });
+  window.KOI_MUSIC?.start?.();
+  window.KOI_STAGE?.exit();
+}
 root.addEventListener('pointermove', e => root.classList.toggle('over', inside(e)));
 root.addEventListener('pointerdown', e => {
   if (state !== 'ready' || !inside(e)) return;
-  state = 'leave'; root.classList.add('leave');
-  for (let i = 0; i < 4; i++) ripples.push({ x: e.clientX, y: e.clientY, t: -i * .2, life: 1.8, r0: 6, r1: R * (1.4 + i * .5), seed: i * 9.1 });
-  window.KOI_MUSIC?.start?.();
-  window.KOI_STAGE?.exit();
+  enter(e.clientX, e.clientY);
 });
 
 function frame(now) {
@@ -175,6 +180,7 @@ function frame(now) {
   reveal.setAttribute('stroke-dashoffset', (1 - lap).toFixed(4));
   // the seal invites a click once the ensō has closed
   if (state === 'loading' && lap >= 1) { state = 'ready'; root.classList.add('ready'); }
+  if (AUTO && state === 'ready') enter(cx, cy);
   // once the pond draws the paper (and the koi), this sheet fades away
   if (ready) paperA = Math.max(0, paperA - dt / .8);
   ctx.setTransform(DPR, 0, 0, DPR, 0, 0);

@@ -1369,8 +1369,16 @@ const wave = pass(/* glsl */ `
   }`, { uPrev: { value: null }, uTexel: { value: new THREE.Vector2(1 / WAVE_W, 1 / WAVE_H) }, uA: { value: new THREE.Vector2() }, uB: { value: new THREE.Vector2() }, uAmount: { value: 0 }, uRadius: { value: .014 }, uDamping: { value: .986 }, uAspect: { value: ASPECT }, uDrops: { value: Array.from({ length: 12 }, () => new THREE.Vector4()) }, uDropN: { value: 0 } });
 
 let sceneRT = new THREE.WebGLRenderTarget(4, 4, { type: THREE.HalfFloatType, samples: 4 });
+// rain ripples (dripRT, see Rain): shared by the water shader and the moon reflection. uDripScale turns the height
+// difference across two texels into the surface slope in units of the ring height; 0 while there are no ripples
+const DRIP_U = { uDrip: { value: null }, uDripTexel: { value: new THREE.Vector2(1, 1) }, uDripScale: { value: 0 } };
+const DRIP_GLSL = /* glsl */ `
+  uniform sampler2D uDrip; uniform vec2 uDripTexel; uniform float uDripScale;
+  float D(vec2 uv) { return texture(uDrip, uv).r; }
+  vec2 dripSlope(vec2 uv) { return vec2(D(uv + vec2(uDripTexel.x, 0.0)) - D(uv - vec2(uDripTexel.x, 0.0)), D(uv + vec2(0.0, uDripTexel.y)) - D(uv - vec2(0.0, uDripTexel.y))) * uDripScale; }`;
 const comp = pass(/* glsl */ `
   uniform sampler2D uScene, uStir, uWave; uniform vec2 uWaveTexel, uWind; uniform float uTime, uGust, uAspect, uRain; uniform vec3 uPaper; varying vec2 vUv;
+  ${DRIP_GLSL}
   float hash(vec2 p) { return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453); }
   float noise(vec2 p) { vec2 i = floor(p), f = fract(p); f = f * f * (3.0 - 2.0 * f); return mix(mix(hash(i), hash(i + vec2(1, 0)), f.x), mix(hash(i + vec2(0, 1)), hash(i + vec2(1, 1)), f.x), f.y); }
   float H(vec2 uv) { return texture(uWave, uv).r; }
@@ -1378,25 +1386,30 @@ const comp = pass(/* glsl */ `
     vec2 disp = texture(uStir, vUv).xy;
     float hC = H(vUv), hL = H(vUv - vec2(uWaveTexel.x, 0.0)), hR = H(vUv + vec2(uWaveTexel.x, 0.0)), hD = H(vUv - vec2(0.0, uWaveTexel.y)), hU = H(vUv + vec2(0.0, uWaveTexel.y));
     vec3 N = normalize(vec3((hL - hR) * 9.0, (hD - hU) * 9.0, 1.0));
+    vec2 nD = dripSlope(vUv);
     // wind: tiny ripples running in the wind direction
     vec2 wd = normalize(uWind + 1e-4), p = vUv * vec2(uAspect, 1.0);
     vec2 q = vec2(dot(p, wd), dot(p, vec2(-wd.y, wd.x)));
     float wn = noise(vec2(q.x * 46.0 - uTime * 3.0, q.y * 9.0)) + .5 * noise(vec2(q.x * 90.0 - uTime * 5.0, q.y * 22.0));
-    vec2 uv = vUv - disp - N.xy * .018 + wd * (wn - .75) * .0026 * uGust;
+    vec2 uv = vUv - disp - N.xy * .018 - nD * .003 + wd * (wn - .75) * .0026 * uGust;
     vec3 col = texture(uScene, uv).rgb;
     // ripples drawn like ink strokes: wave troughs ink-dark, crests paper-light
     float lap = hL + hR + hD + hU - 4.0 * hC;
     col = mix(col, col * .5, smoothstep(.003, .03, lap) * .6);
     col = mix(col, uPaper * 1.04, smoothstep(.003, .03, -lap) * .4);
+    // rain rings lit from the upper left: the side of each ring facing the light catches the pale sky, the far side darkens
+    float sD = clamp(dot(nD, vec2(-.6, .8)), -1.0, 1.0);
+    col = mix(col, col * .55, max(-sD, 0.0) * .7);
+    col = mix(col, uPaper * 1.08, max(sD, 0.0) * .55);
     float streak = smoothstep(.6, .85, noise(vec2(q.x * 5.0 - uTime * .5, q.y * 1.3)));
     col = mix(col, uPaper * 1.06, streak * .06 * uGust);
-    // rain: the surface goes blotchy -- slowly drifting darker and paler patches
+    // rain: the surface goes faintly blotchy -- slowly drifting darker and paler patches
     float bl = noise(p * 7.0 + vec2(uTime * .07, -uTime * .05)) * .65 + noise(p * 19.0 - uTime * .2) * .35;
-    col = mix(col, col * .8, uRain * smoothstep(.45, .75, bl) * .55);
-    col = mix(col, uPaper, uRain * smoothstep(.62, .85, 1.0 - bl) * .12);
+    col = mix(col, col * .8, uRain * smoothstep(.45, .75, bl) * .15);
+    col = mix(col, uPaper, uRain * smoothstep(.62, .85, 1.0 - bl) * .04);
     gl_FragColor = vec4(col, 1.0);
     #include <colorspace_fragment>
-  }`, { uScene: { value: null }, uStir: { value: null }, uWave: { value: null }, uWaveTexel: { value: new THREE.Vector2(1 / WAVE_W, 1 / WAVE_H) }, uWind: { value: new THREE.Vector2(-1, .4) }, uTime: { value: 0 }, uGust: { value: 0 }, uAspect: { value: ASPECT }, uPaper: { value: new THREE.Color() }, uRain: { value: 0 } });
+  }`, { ...DRIP_U, uScene: { value: null }, uStir: { value: null }, uWave: { value: null }, uWaveTexel: { value: new THREE.Vector2(1 / WAVE_W, 1 / WAVE_H) }, uWind: { value: new THREE.Vector2(-1, .4) }, uTime: { value: 0 }, uGust: { value: 0 }, uAspect: { value: ASPECT }, uPaper: { value: new THREE.Color() }, uRain: { value: 0 } });
 
 // Objects sinking under the surface are part of the underwater render, which the composite shifts by the pointer stir
 // (the stirred-water drag). Shift them the opposite way first, so the stir drags only the water, not what has sunk.
@@ -1574,6 +1587,7 @@ glowScene.add(lampHalo, lampFlame);
 const occRT = new THREE.WebGLRenderTarget(4, 4);
 const moonP = pass(/* glsl */ `
   uniform sampler2D uWave, uStir, uOcc; uniform vec2 uWaveTexel, uMoonP, uWind, uCloudOff; uniform float uK, uAspect, uR, uTime, uGust, uCloud; uniform vec3 uCol; varying vec2 vUv;
+  ${DRIP_GLSL}
   float hash(vec2 p) { return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453); }
   float noise(vec2 p) { vec2 i = floor(p), f = fract(p); f = f * f * (3.0 - 2.0 * f); return mix(mix(hash(i), hash(i + vec2(1, 0)), f.x), mix(hash(i + vec2(0, 1)), hash(i + vec2(1, 1)), f.x), f.y); }
   float H(vec2 uv) { return texture(uWave, uv).r; }
@@ -1584,7 +1598,7 @@ const moonP = pass(/* glsl */ `
     vec2 wd = normalize(uWind + 1e-4), p = vUv * vec2(uAspect, 1.0), q = vec2(dot(p, wd), dot(p, vec2(-wd.y, wd.x)));
     float wn = noise(vec2(q.x * 60.0 - uTime * 2.5, q.y * 14.0)) - .5;
     // reflection is more sensitive to surface tilt than refraction
-    vec2 uv = vUv - disp * 1.4 - n * .045 + wd * wn * (.002 + .004 * uGust);
+    vec2 uv = vUv - disp * 1.4 - n * .045 - dripSlope(vUv) * .008 + wd * wn * (.002 + .004 * uGust);
     vec2 d = (uv - uMoonP) * vec2(uAspect, 1.0);
     float r = length(d), px = .0016;
     float disc = 1.0 - smoothstep(uR - px, uR + px, r);
@@ -1604,7 +1618,7 @@ const moonP = pass(/* glsl */ `
     float lit = (1.0 - smoothstep(uR * .5, uR * 1.5, r0)) * .85 + exp(-r0 * r0 / .004) * .25;
     c += uCol * (top * 1.1 + .06) * lit * occ * uK * (1.0 - .9 * cover);
     gl_FragColor = vec4(c, 1.0);
-  }`, { uWave: { value: null }, uStir: { value: null }, uOcc: { value: occRT.texture }, uWaveTexel: { value: new THREE.Vector2(1 / WAVE_W, 1 / WAVE_H) }, uMoonP: { value: new THREE.Vector2(...d2uv(...MOON_D)) }, uWind: { value: new THREE.Vector2(-1, 0) }, uK: { value: 0 }, uAspect: { value: ASPECT }, uR: { value: .042 }, uTime: { value: 0 }, uGust: { value: 0 }, uCol: { value: new THREE.Color() }, uCloud: { value: 0 }, uCloudOff: { value: new THREE.Vector2() } });
+  }`, { ...DRIP_U, uWave: { value: null }, uStir: { value: null }, uOcc: { value: occRT.texture }, uWaveTexel: { value: new THREE.Vector2(1 / WAVE_W, 1 / WAVE_H) }, uMoonP: { value: new THREE.Vector2(...d2uv(...MOON_D)) }, uWind: { value: new THREE.Vector2(-1, 0) }, uK: { value: 0 }, uAspect: { value: ASPECT }, uR: { value: .042 }, uTime: { value: 0 }, uGust: { value: 0 }, uCol: { value: new THREE.Color() }, uCloud: { value: 0 }, uCloudOff: { value: new THREE.Vector2() } });
 moonP.m.blending = THREE.AdditiveBlending; moonP.m.transparent = true;
 const _sz = new THREE.Vector2();
 // draw the night part after the day layers: floating-object mask -> dark layer -> moon reflection -> lantern, fireflies
@@ -1625,7 +1639,7 @@ function renderNight(t, gust, wind) {
 
 // ---------- Rain ----------
 // A quiet ink-wash shower, not a storm. The scene greys over (a light cool multiply, like the night layer); drops fall
-// as 3D streaks seen from above and land on whatever is below: rings on open water, a spray off the rocks, a tap on a
+// as 3D streaks seen from above and land on whatever is below: fine rings and a jumping bead on open water, a spray off the rocks, a tap on a
 // lotus leaf; floating petals and leaves soak and sink sooner, and the tree sheds more. The water turns blotchy and
 // pitted. Dragonflies and butterflies shelter on leaves until it passes, fireflies stay hidden; at night dark clouds
 // drift across the moon and the stone lantern burns low. A shower comes and goes on its own now and then (never in
@@ -1681,41 +1695,106 @@ const rainMesh = new THREE.Mesh(rainGeo, new THREE.ShaderMaterial({
     }`,
 }));
 rainMesh.frustumCulled = false;
-// splashes: where a drop lands, a small bright ring flicks out and a bead jumps, gone in a third of a second
+// splashes: where a drop hits a rock, a leaf or the bank, a small bright ring flicks out and a bead jumps, gone in a third
+// of a second (kind 0). On open water only a bead jumps up and falls back, with a faint crown in the first instant (kind 1)
 const SPLASHES = 700, splashPos = new THREE.BufferAttribute(new Float32Array(SPLASHES * 3), 3).setUsage(THREE.DynamicDrawUsage);
 const splashBirth = new THREE.BufferAttribute(new Float32Array(SPLASHES).fill(-9), 1).setUsage(THREE.DynamicDrawUsage);
 const splashSize = new THREE.BufferAttribute(new Float32Array(SPLASHES), 1).setUsage(THREE.DynamicDrawUsage);
+const splashKind = new THREE.BufferAttribute(new Float32Array(SPLASHES), 1).setUsage(THREE.DynamicDrawUsage);
 const splashGeo = new THREE.BufferGeometry();
-splashGeo.setAttribute('position', splashPos); splashGeo.setAttribute('aBirth', splashBirth); splashGeo.setAttribute('aSize', splashSize);
+splashGeo.setAttribute('position', splashPos); splashGeo.setAttribute('aBirth', splashBirth); splashGeo.setAttribute('aSize', splashSize); splashGeo.setAttribute('aKind', splashKind);
 const splashU = { uTime: { value: 0 }, uPx: { value: 1 }, uCol: { value: new THREE.Color() }, uA: { value: 1 } };
 const splashPts = new THREE.Points(splashGeo, new THREE.ShaderMaterial({
   uniforms: splashU, transparent: true, depthTest: false, depthWrite: false,
   vertexShader: /* glsl */ `
-    attribute float aBirth, aSize; uniform float uTime, uPx; varying float vAge;
+    attribute float aBirth, aSize, aKind; uniform float uTime, uPx; varying float vAge, vKind;
     void main() {
-      vAge = (uTime - aBirth) / .32;
-      gl_Position = projectionMatrix * viewMatrix * vec4(position, 1.0);
-      gl_PointSize = vAge < 0.0 || vAge > 1.0 ? 0.0 : aSize * uPx;
+      vKind = aKind;
+      vAge = (uTime - aBirth) / (aKind > .5 ? .24 : .32);
+      float jump = aKind > .5 ? sin(clamp(vAge, 0.0, 1.0) * 3.14159) : 0.0;   // the bead rises toward the camera and drops back
+      gl_Position = projectionMatrix * viewMatrix * vec4(position + vec3(0.0, jump * .35, 0.0), 1.0);
+      gl_PointSize = vAge < 0.0 || vAge > 1.0 ? 0.0 : aSize * uPx * (1.0 + .35 * jump);
     }`,
   fragmentShader: /* glsl */ `
-    uniform vec3 uCol; uniform float uA; varying float vAge;
+    uniform vec3 uCol; uniform float uA; varying float vAge, vKind;
     void main() {
       float r = length(gl_PointCoord - .5) * 2.0, e = 1.0 - vAge;
-      float ring = (1.0 - smoothstep(.0, .16, abs(r - (.25 + .7 * vAge)))) * e * e;
-      float bead = (1.0 - smoothstep(.0, .3, r)) * max(0.0, 1.0 - vAge * 3.0);
-      gl_FragColor = vec4(uCol, (ring * .8 + bead) * uA);
+      if (vKind > .5) {
+        float bead = 1.0 - smoothstep(.4, .55, r), rim = smoothstep(.15, .5, r) * bead;
+        float crown = (1.0 - smoothstep(.0, .1, abs(r - (.3 + 2.4 * vAge)))) * max(0.0, 1.0 - vAge * 4.0);
+        gl_FragColor = vec4(mix(uCol, uCol * .45, rim), (bead * (1.0 - vAge * vAge) + crown * .5) * uA);
+      } else {
+        float ring = (1.0 - smoothstep(.0, .16, abs(r - (.25 + .7 * vAge)))) * e * e;
+        float bead = (1.0 - smoothstep(.0, .3, r)) * max(0.0, 1.0 - vAge * 3.0);
+        gl_FragColor = vec4(uCol, (ring * .8 + bead) * uA);
+      }
       #include <colorspace_fragment>
     }`,
 }));
 splashPts.frustumCulled = false;
 const rainScene = new THREE.Scene(); rainScene.add(rainMesh, splashPts);
 let splashI = 0;
-function splashAt(x, y, z, size, t) {
+function splashAt(x, y, z, size, t, kind = 0) {
   const i = splashI = (splashI + 1) % SPLASHES;
-  splashPos.setXYZ(i, x, y, z); splashBirth.setX(i, t); splashSize.setX(i, size);
+  splashPos.setXYZ(i, x, y, z); splashBirth.setX(i, t); splashSize.setX(i, size); splashKind.setX(i, kind);
+}
+// ripples: each drop that lands on open water rings out. Every ripple is an instanced quad drawn additively into dripRT
+// (signed heights in screen uv, cleared to flat water each frame): a dimple where the drop went in, then a packet of fine
+// rings running outward that spreads into more, fainter rings as it goes. The water shader and the moon reflection read
+// its slope (DRIP_U), so the rings bend the koi and leaves below and break up the moon. Hundreds live at once, unlike the
+// wave simulation, which takes 12 sources a frame.
+const DRIPS = 900, DRIP_LIFE = 1.3, DRIP_SPEED = .028, DRIP_LAMBDA = .0055;   // speed (per s) and wavelength in screen heights
+const dripGeo = new THREE.InstancedBufferGeometry();
+dripGeo.index = quadGeo.index; dripGeo.setAttribute('position', quadGeo.getAttribute('position'));
+const dripA = new THREE.InstancedBufferAttribute(new Float32Array(DRIPS * 4).fill(-99), 4).setUsage(THREE.DynamicDrawUsage);   // u, v, birth, size
+dripGeo.setAttribute('aDrip', dripA); dripGeo.instanceCount = DRIPS;
+const dripU = { uTime: { value: 0 }, uAspect: { value: ASPECT } };
+const DRIP_CONST = `const float LIFE = ${DRIP_LIFE.toFixed(4)}, SPEED = ${DRIP_SPEED.toFixed(4)}, LAMBDA = ${DRIP_LAMBDA.toFixed(4)};`;
+const dripMesh = new THREE.Mesh(dripGeo, new THREE.ShaderMaterial({
+  uniforms: dripU, transparent: true, depthTest: false, depthWrite: false,
+  blending: THREE.CustomBlending, blendEquation: THREE.AddEquation, blendSrc: THREE.OneFactor, blendDst: THREE.OneFactor,
+  vertexShader: /* glsl */ `
+    attribute vec4 aDrip; uniform float uTime, uAspect; varying vec2 vQ; varying float vAge, vS;
+    ${DRIP_CONST}
+    void main() {
+      vAge = uTime - aDrip.z; vS = aDrip.w;
+      if (vAge < 0.0 || vAge > LIFE) { gl_Position = vec4(2.0, 2.0, 2.0, 1.0); return; }
+      vQ = position.xy * (SPEED * LIFE + LAMBDA * 3.0) * vS;                     // screen heights from the centre
+      gl_Position = vec4((aDrip.xy + vQ / vec2(uAspect, 1.0)) * 2.0 - 1.0, 0.0, 1.0);
+    }`,
+  fragmentShader: /* glsl */ `
+    varying vec2 vQ; varying float vAge, vS;
+    ${DRIP_CONST}
+    void main() {
+      float r = length(vQ), u = vAge / LIFE, lam = LAMBDA * vS, front = SPEED * vS * vAge;
+      float w = lam * (.8 + 1.8 * u), x = r - front + w * .5;
+      float h = exp(-x * x / (w * w)) * cos(6.2831853 * (r - front) / lam) * pow(1.0 - u, 1.6) / sqrt(1.0 + r / lam);
+      h -= 1.4 * exp(-r * r / (lam * lam * .25)) * max(0.0, 1.0 - vAge / .12);
+      gl_FragColor = vec4(h * .7 * vS, 0.0, 0.0, 1.0);
+    }`,
+}));
+dripMesh.frustumCulled = false;
+const dripScene = new THREE.Scene(); dripScene.add(dripMesh);
+let dripRT = null, dripI = 0, lastDrip = -99;
+const _dsz = new THREE.Vector2();
+function dripAt(u, v, size, t) {
+  const i = dripI = (dripI + 1) % DRIPS;
+  dripA.setXYZW(i, u, v, t, size); lastDrip = t;
+}
+// draw the live ripples into dripRT for the water shader and the moon reflection (skipped once the last one has faded)
+function renderDrip(t) {
+  if (t - lastDrip > DRIP_LIFE) { DRIP_U.uDripScale.value = 0; return; }
+  renderer.getDrawingBufferSize(_dsz);
+  const k = Math.min(1, 1440 / _dsz.y), w = Math.max(1, Math.round(_dsz.x * k)), h = Math.max(1, Math.round(_dsz.y * k));
+  if (!dripRT) dripRT = rt(w, h); else if (dripRT.width !== w || dripRT.height !== h) dripRT.setSize(w, h);
+  dripA.needsUpdate = true; dripU.uTime.value = t;
+  renderer.setRenderTarget(dripRT); renderer.setClearColor(0, 0); renderer.clear(); renderer.render(dripScene, qCam);
+  renderer.setRenderTarget(null);
+  DRIP_U.uDrip.value = dripRT.texture; DRIP_U.uDripTexel.value.set(1 / w, 1 / h); DRIP_U.uDripScale.value = DRIP_LAMBDA * h / (4 * Math.PI);
 }
 const rainDrops = Array.from({ length: DROPS }, () => ({ live: false, x: 0, y: 0, z: 0, vx: 0, vy: 0, vz: 0 }));
 // a drop lands: rocks splash, the bank soaks it up, lotus leaves take the tap, open water rings (within this frame's budget)
+// and sometimes throws up a bead
 function rainLand(x, z, budget, t) {
   const [dx, dy] = w2d(x, z, FLOAT_Y);
   for (const [rx, ry, sz] of ROCKS) if (Math.hypot(dx - rx, dy - ry) < sz * .8) {
@@ -1730,8 +1809,10 @@ function rainLand(x, z, budget, t) {
     if (d.big && dd < d.rad) { splashAt(x, FLOAT_Y + .1, z, rnd(12, 18), t); if (budget.leaf-- > 0 && Math.random() < .3) droplets(x, z, 1, .2); return; }
     if (!d.big && d.sinkable && dd < .5) d.life -= 1.2;
   }
-  splashAt(x, FLOAT_Y, z, rnd(12, 20), t);
-  if (budget.ring-- > 0) { const [u, v] = d2uv(dx, dy); splash(u, v, rnd(.004, .007), rnd(.035, .07)); }
+  const [u, v] = d2uv(dx, dy);
+  if (budget.drip-- > 0) dripAt(u, v, rnd(.7, 1.3), t);
+  if (Math.random() < .45) splashAt(x, FLOAT_Y, z, rnd(5, 8), t, 1);
+  if (budget.ring-- > 0 && Math.random() < .1) splash(u, v, rnd(.005, .008), rnd(.05, .08));   // now and then a big drop stirs the wave sim too
 }
 // shelter for butterflies in the rain: under a leaf or blossom on the tree
 function shelterTarget() {
@@ -1751,9 +1832,10 @@ function updateRain(dt, t, wx, wz, gust) {
   greyQ.material.uniforms.uK.value = k * .9; comp.u.uRain.value = k;
   nightQ.material.uniforms.uMoon.value = 1 - .6 * k;
   // drops: as many in the air as the shower is heavy; each starts upwind of a random spot in view and lands there.
-  // Ring splashes, rock sprays and leaf taps are rationed per frame (the wave shader takes 12 sources at most).
+  // Ripples, rock sprays and leaf taps are rationed per frame: ripples to what the DRIPS pool holds over their life, the
+  // occasional wave-sim ring to 2 (the wave shader takes 12 sources at most).
   const night = nightQ.material.uniforms.uK.value, active = Math.round(R.level * DROPS), v0 = viewAt(FLOAT_Y), drift = 2 + gust * 7;
-  const budget = { ring: 8, rock: 1, leaf: 1 }, A = lerp(.55, .32, night);   // at night thinner, so it reads as rain, not snow
+  const budget = { ring: 2, rock: 1, leaf: 1, drip: Math.ceil(DRIPS / DRIP_LIFE * dt) }, A = lerp(.55, .32, night);   // at night thinner, so it reads as rain, not snow
   // sheets of heavier rain sweep across with the wind: drops are placed preferring the bands (as the overcast shows them)
   const sw = Math.hypot(wx, wz) || 1, sx = wx / sw, sz = wz / sw, ph = t * 1.6;
   greyQ.material.uniforms.uSheet.value.set(sx, -sz, ph);
@@ -1774,7 +1856,7 @@ function updateRain(dt, t, wx, wz, gust) {
     rainB.setXYZ(i, p.x, p.y, p.z); rainAl.setX(i, A);
   }
   rainA.needsUpdate = rainB.needsUpdate = rainAl.needsUpdate = true;
-  splashPos.needsUpdate = splashBirth.needsUpdate = splashSize.needsUpdate = true;
+  splashPos.needsUpdate = splashBirth.needsUpdate = splashSize.needsUpdate = splashKind.needsUpdate = true;
   renderer.getDrawingBufferSize(rainU.uRes.value); rainU.uWidth.value = 1.2 * renderer.getPixelRatio();
   rainU.uInk.value.setRGB(lerp(.2, .66, night), lerp(.22, .7, night), lerp(.26, .8, night), THREE.SRGBColorSpace);
   splashU.uTime.value = t; splashU.uPx.value = renderer.getPixelRatio(); splashU.uA.value = lerp(.75, .55, night);
@@ -2703,6 +2785,7 @@ renderer.setAnimationLoop((ts) => {
   RIPPLE.length = 0; prevUV.copy(ptrUV);
 
   // Underwater -> RT, through the water surface shader to the screen, then the above-water layers
+  renderDrip(t);
   comp.u.uScene.value = sceneRT.texture; comp.u.uStir.value = stirBuf.read.texture; comp.u.uWave.value = waveBuf.read.texture;
   renderer.setRenderTarget(sceneRT); renderer.setClearColor(new THREE.Color(S.paper), 1); renderer.clear(); renderer.render(waterScene, camera);
   comp.u.uTime.value = t; comp.u.uGust.value = gust; comp.u.uWind.value.set(wx, -wz);

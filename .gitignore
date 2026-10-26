@@ -2,3 +2,5 @@ node_modules/
 dist/
 .superpowers/
 .claude/
+screensaver/bin/
+screensaver/obj/
