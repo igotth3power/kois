@@ -16,6 +16,9 @@ function play(i) {
   audio.src = TRACKS[index];
   audio.play().catch(() => { started = false; });   // blocked: retry on the next interaction
 }
+// the browser refused to play (no user gesture yet, e.g. the screensaver skips the intro click): try again on the
+// viewer's next click or key
+for (const t of ['pointerdown', 'keydown']) addEventListener(t, () => { if (!started && audio.src) start(); }, true);
 audio.addEventListener('ended', () => setTimeout(() => play(index + 1), GAP));
 
 function start() {

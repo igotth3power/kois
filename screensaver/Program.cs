@@ -83,7 +83,9 @@ sealed class SaverForm : Form
         Controls.Add(web);
         // the .scr may live in C:\Windows, which is not writable: keep the browser profile in AppData
         var dataDir = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "KoiScreensaver");
-        await web.EnsureCoreWebView2Async(await CoreWebView2Environment.CreateAsync(null, dataDir));
+        // no one clicks a screensaver: let the music start without a user gesture
+        var options = new CoreWebView2EnvironmentOptions("--autoplay-policy=no-user-gesture-required");
+        await web.EnsureCoreWebView2Async(await CoreWebView2Environment.CreateAsync(null, dataDir, options));
 
         var core = web.CoreWebView2;
         core.Settings.AreDefaultContextMenusEnabled = false;
