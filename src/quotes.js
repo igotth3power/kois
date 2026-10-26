@@ -16,7 +16,7 @@ css.textContent = `
     opacity: 0; filter: blur(7px); transition: opacity ${FADE}s ease, filter ${FADE}s ease, color 3s; }
   #quote.on { opacity: 1; filter: blur(0); }
   #quote.night { color: #e9e4d6; }
-  #quote .vi { font: italic 400 clamp(16px, 1.5vw, 21px)/1.55 'Noto Serif', Georgia, serif; opacity: .85; white-space: pre-line; }
+  #quote .vi { font: 500 clamp(21px, 1.95vw, 28px)/1.4 'Dancing Script', 'Noto Serif', cursive; opacity: .88; white-space: pre-line; }   /* a calligraphic hand with full Vietnamese */
   #quote .src:empty { display: none; }
   #quote .src { font: 400 clamp(10px, .85vw, 12px)/1.4 'Noto Serif', Georgia, serif; letter-spacing: .04em; opacity: .5; }
   body.intro #quote { display: none; }`;

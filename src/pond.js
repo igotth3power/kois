@@ -2506,8 +2506,8 @@ window.KOI_CTRL = {
 // ---------- Intro stage ----------
 // Before the pond is shown, two koi -- paper-white with ink patches, ink-black with white clouds -- swim in over plain
 // paper from opposite sides, fall into a circle and chase each other like yin and yang. On the viewer's click
-// (KOI_STAGE.exit, called by src/intro.js) one swims off upward, the other downward, while the paper dissolves from the
-// centre like an ink drop bleeding into wet washi and the pond appears. src/intro.js draws the lettering and the ensō.
+// (KOI_STAGE.exit, called by src/intro.js) one swims off upward, the other downward, while the paper opens from the
+// centre like a plum blossom and the pond appears. src/intro.js draws the ensō.
 const STAGE = { on: true, phase: 'enter', reveal: -1, koi: [], geo: null };
 const introScene = new THREE.Scene();
 introScene.add(new THREE.HemisphereLight('#fffaf0', '#8a8370', 1.15));
@@ -2538,14 +2538,14 @@ function introScript(k, dt) {
     k.x += Math.cos(k.heading) * k.cur * dt; k.z += Math.sin(k.heading) * k.cur * dt;
   } else {
     const line = g.half + k.len * 1.3;
-    k.cur = k.d < line ? Math.max(g.R * 1.5, (line - k.d) * 1.2) : g.R * 1.5;   // a lap of the circle takes ~4 s
+    k.cur = k.d < line ? Math.max(g.R * 2.6, (line - k.d) * 2) : g.R * 2.6;   // a lap of the circle takes ~2.4 s
     k.d += k.cur * dt; [k.x, k.z, k.heading] = introPath(k, k.d);
   }
   k.angVel = angDiff(k.heading, h0) / Math.max(dt, 1e-4); k.turn = k.angVel;
   // on the circle the body curls into a C around the centre (yin-yang); straight while swimming in, and when leaving
   const onCircle = STAGE.phase !== 'exit' && k.d > STAGE.geo.half + k.len * 1.3;
   k.cBend = lerp(k.cBend || 0, onCircle ? .4 : 0, 1 - Math.exp(-dt * 2)); k.bendDepth = .5;   // the arc itself gives most of the curve
-  k.beat = .75; k.evEnv = 0; k.pitchT = 0; k.y = k.ty = INTRO_Y;
+  k.beat = 1.1; k.evEnv = 0; k.pitchT = 0; k.y = k.ty = INTRO_Y;
 }
 function startStage() {
   STAGE.geo = stageGeo();
@@ -2558,18 +2558,25 @@ function startStage() {
     STAGE.koi.push(k);
   }
 }
-// paper over the pond, with the ink-drop hole; uses the intro's own paper canvas so the hand-off is seamless
-const paperU = { uPaper: { value: null }, uHas: { value: 0 }, uCss: { value: new THREE.Vector2(1, 1) }, uOff: { value: new THREE.Vector2() }, uWin: { value: new THREE.Vector2(1, 1) }, uHole: { value: 0 }, uRim: { value: 0 }, uTime: { value: 0 } };
+// paper over the pond, opening from the centre like a plum blossom (ume): five petals unfold and turn as the hole grows,
+// rounding out to a circle by the end, a blush of plum red bleeding into the paper at the edge.
+// Uses the intro's own paper canvas so the hand-off is seamless
+const paperU = { uPaper: { value: null }, uHas: { value: 0 }, uCss: { value: new THREE.Vector2(1, 1) }, uOff: { value: new THREE.Vector2() }, uWin: { value: new THREE.Vector2(1, 1) }, uHole: { value: 0 }, uRim: { value: 0 }, uTime: { value: 0 }, uBloom: { value: 0 } };
 const paperPass = pass(/* glsl */ `
-  uniform sampler2D uPaper; uniform float uHas, uHole, uRim, uTime; uniform vec2 uCss, uOff, uWin; varying vec2 vUv;
+  uniform sampler2D uPaper; uniform float uHas, uHole, uRim, uTime, uBloom; uniform vec2 uCss, uOff, uWin; varying vec2 vUv;
   void main() {
     vec2 win = vec2(vUv.x * uCss.x, (1.0 - vUv.y) * uCss.y) + uOff;            // window pixels, from the top-left
     vec3 paper = uHas > .5 ? texture(uPaper, vec2(win.x / uWin.x, 1.0 - win.y / uWin.y)).rgb : vec3(.93, .9, .83);
     vec2 d = win - uWin * .5; float a = atan(d.y, d.x), r = length(d);
-    float n = sin(a * 5.0 + 1.3) * .5 + sin(a * 11.0 + uTime * 2.0) * .3 + sin(a * 23.0 - uTime * 3.0) * .2;
-    float edge = uHole * (1.0 + .08 * n), keep = uHole > 0.0 ? smoothstep(edge - 5.0, edge + 7.0, r) : 1.0;
-    float rim = uHole > 0.0 ? smoothstep(edge + 46.0, edge + 2.0, r) * keep : 0.0;   // ink bleeding just outside the opening
-    gl_FragColor = vec4(mix(paper, vec3(.08, .08, .07), rim * uRim), keep);
+    float n = sin(a * 11.0 + uTime * 2.0) * .6 + sin(a * 23.0 - uTime * 3.0) * .4;
+    // five petals, one at the top: pointed and turned while in bud, broad and round as they open, a small notch at each tip
+    float pc = abs(cos(2.5 * (a + 1.5708 + .8 * (1.0 - uBloom))));
+    float petal = pow(pc, mix(1.5, .45, uBloom)) - .05 * pow(pc, 30.0);
+    float depth = .42 * (1.0 - smoothstep(.65, 1.0, uBloom));
+    float edge = uHole * (1.0 - depth + depth * petal) * (1.0 + .015 * n), keep = uHole > 0.0 ? smoothstep(edge - 5.0, edge + 7.0, r) : 1.0;
+    float rim = uHole > 0.0 ? smoothstep(edge + 46.0, edge + 2.0, r) * keep : 0.0;   // plum red bleeding just outside the opening
+    vec3 plum = mix(vec3(.72, .2, .24), vec3(.48, .025, .035), smoothstep(edge + 40.0, edge + 4.0, r));
+    gl_FragColor = vec4(mix(paper, plum, rim * uRim), keep);
     #include <colorspace_fragment>
   }`, paperU);
 paperPass.m.transparent = true;
@@ -2585,7 +2592,7 @@ function renderStage(dt) {
   if (S.phase === 'exit') {
     S.reveal += dt; paperU.uTime.value = S.reveal;
     const u = clamp((S.reveal - .35) / 1.7, 0, 1), e = u < .5 ? 4 * u * u * u : 1 - Math.pow(-2 * u + 2, 3) / 2;
-    paperU.uHole.value = e * Math.hypot(innerWidth, innerHeight) * .62; paperU.uRim.value = .6 * (1 - u);
+    paperU.uHole.value = e * Math.hypot(innerWidth, innerHeight) * .62; paperU.uRim.value = .75 * (1 - u); paperU.uBloom.value = e;
     if (u >= 1) {
       S.on = false;
       for (const k of S.koi) { k.root.removeFromParent(); k.root.traverse(o => { if (o.isMesh) o.material.dispose?.(); }); }

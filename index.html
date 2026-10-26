@@ -6,7 +6,7 @@
     <title>鯉の池</title>
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
     <link rel="preconnect" href="https://fonts.googleapis.com" />
-    <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Yuji+Syuku&family=Noto+Serif+JP:wght@500;700&family=Noto+Serif:ital@0;1&display=swap" />
+    <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Yuji+Syuku&family=Noto+Serif+JP:wght@500;700&family=Noto+Serif:ital@0;1&family=Dancing+Script:wght@500&display=swap" />
     <style>
       :root { --paper: #ece4cf; --ink: #1d1d1d; --seal: #b3281e; --petal: #e9a3b6; --sun: #c8321f; }
       * { box-sizing: border-box; }
@@ -54,10 +54,18 @@
       #info.on { display: block; }
       #info p { margin: 0 0 4px; }
       #info .keys { opacity: .7; }
+      /* cursor: a red plum blossom (ume) turning slowly on its own, drawn by #cur; the native cursor is hidden while it shows */
+      body.mai, body.mai * { cursor: none !important; }
+      #cur { position: fixed; left: 0; top: 0; width: 26px; height: 26px; margin: -13px 0 0 -13px; z-index: 1000; pointer-events: none; display: none; transition: scale .2s; }
+      body.mai #cur { display: block; }
+      #cur.big { scale: 1.35; }
+      #cur svg { width: 100%; height: 100%; display: block; animation: mai 6s linear infinite; }
+      @keyframes mai { to { rotate: 360deg; } }
     </style>
   </head>
   <body>
     <canvas id="scene"></canvas>
+    <div id="cur"><svg viewBox='-12 -12 24 24' aria-hidden='true'><g fill='#c8322b' stroke='#5a1512' stroke-width='.6'><circle cx='0.00' cy='-5.40' r='4.7'/><circle cx='5.14' cy='-1.67' r='4.7'/><circle cx='3.17' cy='4.37' r='4.7'/><circle cx='-3.17' cy='4.37' r='4.7'/><circle cx='-5.14' cy='-1.67' r='4.7'/></g><circle r='2.6' fill='#f4dfc4'/><g stroke='#7a3a10' stroke-width='.45'><line x1='0' y1='0' x2='2.12' y2='-2.91'/><line x1='0' y1='0' x2='3.42' y2='1.11'/><line x1='0' y1='0' x2='0.00' y2='3.60'/><line x1='0' y1='0' x2='-3.42' y2='1.11'/><line x1='0' y1='0' x2='-2.12' y2='-2.91'/></g><g fill='#e8b33c'><circle cx='2.23' cy='-3.07' r='.75'/><circle cx='3.61' cy='1.17' r='.75'/><circle cx='0.00' cy='3.80' r='.75'/><circle cx='-3.61' cy='1.17' r='.75'/><circle cx='-2.23' cy='-3.07' r='.75'/></g></svg></div>
     <div id="ctrl">
       <button class="ink" id="main" title="Scene"></button>
       <div id="strip">
@@ -155,6 +163,19 @@
         else if (k === 'm') $('#music').click();
         else if (k === 'i') { openStrip(true); $('#info').classList.toggle('on'); }
       });
+    </script>
+    <script>
+      // the blossom follows the mouse (not on touch screens, nor in the screensaver, which hides the cursor);
+      // it grows a little over anything clickable
+      if (matchMedia('(pointer: fine)').matches && !new URLSearchParams(location.search).has('screensaver')) {
+        const cur = document.getElementById('cur');
+        addEventListener('pointermove', e => {
+          document.body.classList.add('mai');
+          cur.style.translate = `${e.clientX}px ${e.clientY}px`;
+          cur.classList.toggle('big', !!e.target.closest?.('button, a, #intro.ready.over'));
+        }, { passive: true });
+        document.documentElement.addEventListener('pointerleave', () => document.body.classList.remove('mai'));
+      }
     </script>
     <script type="module" src="/src/intro.js"></script>
     <script type="module" src="/src/music.js"></script>
