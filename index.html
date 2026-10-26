@@ -12,7 +12,13 @@
       * { box-sizing: border-box; }
       html, body { margin: 0; height: 100%; overflow: hidden; background: var(--paper); color: var(--ink); font-family: system-ui, sans-serif; }
       /* the painting covers the whole screen at 960:560 (crops the overflow instead of letterboxing) */
-      #scene { position: fixed; left: 50%; top: 50%; transform: translate(-50%, -50%); width: max(100vw, calc(100vh * 960 / 560)); aspect-ratio: 960 / 560; height: auto; display: block; cursor: crosshair; background: var(--paper); }
+      #scene { position: fixed; left: 50%; top: 50%; transform: translate(-50%, -50%); width: max(100vw, calc(100vh * 960 / 560)); width: max(100vw, calc(100dvh * 960 / 560)); aspect-ratio: 960 / 560; height: auto; display: block; cursor: crosshair; background: var(--paper); touch-action: none; }
+      /* 100dvh: the height left by a phone's address bar; touch-action: a finger stirs the water instead of scrolling or pulling to refresh */
+      /* portrait: the pond is seen from straight above, so turn the landscape painting a quarter clockwise to fill the
+         screen (src/pond.js maps screen points through the same turn) */
+      @media (orientation: portrait) {
+        #scene { width: max(100vh, calc(100vw * 960 / 560)); width: max(100dvh, calc(100vw * 960 / 560)); transform: translate(-50%, -50%) rotate(90deg); }
+      }
 
       /* ---- corner control in ink-brush style ---- */
       #ctrl { position: fixed; right: 14px; bottom: 14px; display: flex; flex-direction: column-reverse; align-items: center; gap: 6px; z-index: 3; }

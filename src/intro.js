@@ -97,7 +97,15 @@ css.textContent = `
   #intro.ready .seal { opacity: .88; transform: rotate(-6deg) scale(1); }
   #intro.ready.over { cursor: pointer; }
   #intro.leave .seal { opacity: 0 !important; transition: opacity .5s; }
-  #intro.leave .enso { opacity: 0; transform: translate(-50%, -50%) rotate(-6deg) scale(1.25); }`;
+  #intro.leave .enso { opacity: 0; transform: translate(-50%, -50%) rotate(-6deg) scale(1.25); }
+  /* portrait (a phone held upright): the painting and the koi are turned a quarter clockwise (index.html), so turn the
+     ensō and the seal with them */
+  @media (orientation: portrait) {
+    #intro .enso { transform: translate(-50%, -50%) rotate(84deg); }
+    #intro .seal { transform: rotate(84deg) scale(.3); }
+    #intro.ready .seal { transform: rotate(84deg) scale(1); }
+    #intro.leave .enso { transform: translate(-50%, -50%) rotate(84deg) scale(1.25); }
+  }`;
 document.head.appendChild(css);
 document.body.appendChild(root);
 requestAnimationFrame(() => root.classList.add('shown'));
@@ -108,7 +116,7 @@ const cvs = root.querySelector('canvas'), ctx = cvs.getContext('2d');
 let W = 0, H = 0, cx = 0, cy = 0, R = 0;
 function layout() {
   W = innerWidth; H = innerHeight; cvs.width = W * DPR; cvs.height = H * DPR;
-  cx = W / 2; cy = H / 2; R = Math.min(W, H) * .16;            // same circle as KOI_STAGE in src/pond.js
+  const S = Math.min(W, H); cx = W / 2; cy = H / 2; R = S * (S < 600 ? .24 : .16);   // same circle as KOI_STAGE in src/pond.js (larger on a phone)
   root.style.setProperty('--d', `${R * 2.9}px`);
   window.KOI_PAPER = makePaper(W, H);                         // the pond draws this same sheet once it takes over
 }

@@ -1430,6 +1430,9 @@ function holdAgainstStir(mat) {
 
 function fit() {
   const w = canvas.clientWidth || DW, h = Math.round(w / ASPECT);
+  // on a portrait phone the painting is far wider than the screen (most of it cropped): cap the drawing buffer at
+  // 2560 px across so the GPU isn't filling pixels nobody sees
+  renderer.setPixelRatio(Math.min(2, window.devicePixelRatio, 2560 / w));
   renderer.setSize(w, h, false);
   const pr = renderer.getPixelRatio(); sceneRT.setSize(Math.round(w * pr), Math.round(h * pr));
 }
@@ -2467,10 +2470,17 @@ function updateFood(dt, t, wx, wz, gust) {
 }
 
 // ---------- Interaction ----------
+// window point -> canvas position (0..1 from the canvas's own top-left). On a portrait screen index.html turns the
+// painting a quarter clockwise, so the canvas's x runs down the screen and its y from right to left.
+const portrait = matchMedia('(orientation: portrait)');
+function toCanvas(x, y) {
+  const b = canvas.getBoundingClientRect();
+  return portrait.matches ? [(y - b.top) / b.height, 1 - (x - b.left) / b.width] : [(x - b.left) / b.width, (y - b.top) / b.height];
+}
 const ray = new THREE.Raycaster(), surf = new THREE.Plane(new THREE.Vector3(0, 1, 0), 0), hit = new THREE.Vector3();
 let pointer = null, lastP = null, ptrUV = new THREE.Vector2(.5, .5), prevUV = new THREE.Vector2(.5, .5), hasPtr = false;
 function pickEvt(e) {
-  const b = canvas.getBoundingClientRect(), nx = (e.clientX - b.left) / b.width, ny = (e.clientY - b.top) / b.height;
+  const [nx, ny] = toCanvas(e.clientX, e.clientY);
   ray.setFromCamera({ x: nx * 2 - 1, y: -(ny * 2 - 1) }, camera);
   return { uv: [nx, 1 - ny], w: ray.ray.intersectPlane(surf, hit) ? { x: hit.x, z: hit.z } : null };
 }
@@ -2515,14 +2525,15 @@ introScene.add(new THREE.HemisphereLight('#fffaf0', '#8a8370', 1.15));
 const INTRO_Y = -1;
 const _ray = new THREE.Raycaster(), _plane = new THREE.Plane(new THREE.Vector3(0, 1, 0), -INTRO_Y), _hit = new THREE.Vector3();
 function screenToWorld(sx, sy) {
-  const r = canvas.getBoundingClientRect();
-  _ray.setFromCamera({ x: (sx - r.left) / r.width * 2 - 1, y: -((sy - r.top) / r.height * 2 - 1) }, camera);
+  const [nx, ny] = toCanvas(sx, sy);
+  _ray.setFromCamera({ x: nx * 2 - 1, y: -(ny * 2 - 1) }, camera);
   _ray.ray.intersectPlane(_plane, _hit); return [_hit.x, _hit.z];
 }
-// the circle sits at the centre of the window, radius 16% of its short side (same geometry as src/intro.js)
+// the circle sits at the centre of the window, radius 16% of its short side, 24% on a phone (same geometry as src/intro.js)
 function stageGeo() {
-  const W = innerWidth, H = innerHeight, [cxw, czw] = screenToWorld(W / 2, H / 2), [rx] = screenToWorld(W / 2 + Math.min(W, H) * .16, H / 2), [ex] = screenToWorld(0, H / 2);
-  const Rs = rx - cxw; return { cx: cxw, cz: czw, Rs, R: Rs * .7, half: cxw - ex };   // koi circle close together, well inside the ensō
+  const W = innerWidth, H = innerHeight, S = Math.min(W, H), [cxw, czw] = screenToWorld(W / 2, H / 2), [rx, rz] = screenToWorld(W / 2 + S * (S < 600 ? .24 : .16), H / 2);
+  const [ex] = portrait.matches ? screenToWorld(W / 2, 0) : screenToWorld(0, H / 2);   // the edge the koi swim in from: the painting's left
+  const Rs = Math.hypot(rx - cxw, rz - czw); return { cx: cxw, cz: czw, Rs, R: Rs * .7, half: cxw - ex };   // koi circle close together, well inside the ensō
 }
 // path: swim in along a horizontal line that meets the circle tangentially, then circle clockwise (on screen)
 function introPath(k, d) {
@@ -2561,11 +2572,12 @@ function startStage() {
 // paper over the pond, opening from the centre like a plum blossom (ume): five petals unfold and turn as the hole grows,
 // rounding out to a circle by the end, a blush of plum red bleeding into the paper at the edge.
 // Uses the intro's own paper canvas so the hand-off is seamless
-const paperU = { uPaper: { value: null }, uHas: { value: 0 }, uCss: { value: new THREE.Vector2(1, 1) }, uOff: { value: new THREE.Vector2() }, uWin: { value: new THREE.Vector2(1, 1) }, uHole: { value: 0 }, uRim: { value: 0 }, uTime: { value: 0 }, uBloom: { value: 0 } };
+const paperU = { uPaper: { value: null }, uHas: { value: 0 }, uCss: { value: new THREE.Vector2(1, 1) }, uOff: { value: new THREE.Vector2() }, uWin: { value: new THREE.Vector2(1, 1) }, uHole: { value: 0 }, uRim: { value: 0 }, uTime: { value: 0 }, uBloom: { value: 0 }, uRot: { value: 0 } };
 const paperPass = pass(/* glsl */ `
-  uniform sampler2D uPaper; uniform float uHas, uHole, uRim, uTime, uBloom; uniform vec2 uCss, uOff, uWin; varying vec2 vUv;
+  uniform sampler2D uPaper; uniform float uHas, uHole, uRim, uTime, uBloom, uRot; uniform vec2 uCss, uOff, uWin; varying vec2 vUv;
   void main() {
-    vec2 win = vec2(vUv.x * uCss.x, (1.0 - vUv.y) * uCss.y) + uOff;            // window pixels, from the top-left
+    vec2 c = vec2(vUv.x, 1.0 - vUv.y);                                          // canvas, from its top-left
+    vec2 win = (uRot > .5 ? vec2(1.0 - c.y, c.x) : c) * uCss + uOff;            // window pixels, from the top-left (turned in portrait)
     vec3 paper = uHas > .5 ? texture(uPaper, vec2(win.x / uWin.x, 1.0 - win.y / uWin.y)).rgb : vec3(.93, .9, .83);
     vec2 d = win - uWin * .5; float a = atan(d.y, d.x), r = length(d);
     float n = sin(a * 11.0 + uTime * 2.0) * .6 + sin(a * 23.0 - uTime * 3.0) * .4;
@@ -2588,7 +2600,7 @@ function renderStage(dt) {
     paperU.uPaper.value = new THREE.CanvasTexture(paperSrc); paperU.uPaper.value.colorSpace = THREE.SRGBColorSpace; paperU.uHas.value = 1;
   }
   const r = canvas.getBoundingClientRect();
-  paperU.uCss.value.set(r.width, r.height); paperU.uOff.value.set(r.left, r.top); paperU.uWin.value.set(innerWidth, innerHeight);
+  paperU.uCss.value.set(r.width, r.height); paperU.uOff.value.set(r.left, r.top); paperU.uWin.value.set(innerWidth, innerHeight); paperU.uRot.value = portrait.matches ? 1 : 0;
   if (S.phase === 'exit') {
     S.reveal += dt; paperU.uTime.value = S.reveal;
     const u = clamp((S.reveal - .35) / 1.7, 0, 1), e = u < .5 ? 4 * u * u * u : 1 - Math.pow(-2 * u + 2, 3) / 2;

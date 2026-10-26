@@ -19,7 +19,19 @@ css.textContent = `
   #quote .vi { font: 500 clamp(21px, 1.95vw, 28px)/1.4 'Dancing Script', 'Noto Serif', cursive; opacity: .88; white-space: pre-line; }   /* a calligraphic hand with full Vietnamese */
   #quote .src:empty { display: none; }
   #quote .src { font: 400 clamp(10px, .85vw, 12px)/1.4 'Noto Serif', Georgia, serif; letter-spacing: .04em; opacity: .5; }
-  body.intro #quote { display: none; }`;
+  body.intro #quote { display: none; }
+  @media (max-width: 600px) {   /* phone: tucked into the top-left corner like on a big screen, just smaller */
+    #quote { left: 14px; top: 14px; max-width: min(62vw, 260px); gap: 4px; }
+    #quote .vi { font-size: 15px; line-height: 1.35; }
+    #quote .src { font-size: 10px; }
+  }
+  /* portrait: the painting is turned a quarter clockwise (index.html); the saying turns with it and sits in the
+     painting's top-left corner -- the top right of the screen -- as compact as on a big screen */
+  @media (orientation: portrait) {
+    #quote { left: calc(100vw - 14px); top: 14px; transform-origin: 0 0; rotate: 90deg; width: max-content; max-width: min(24vh, 210px); gap: 2px; }   /* width: it starts 14px from the screen edge, so shrink-to-fit would leave it 14px wide */
+    #quote .vi { font-size: 12.5px; line-height: 1.3; }
+    #quote .src { font-size: 9px; }
+  }`;
 document.head.append(css);
 document.body.append(root);
 
